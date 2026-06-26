@@ -1,0 +1,15 @@
+{
+  "name": "ATPL口述トレーナー｜統合（下田・迫田・共通）",
+  "short_name": "ATPL口述",
+  "description": "ATPL口述試験トレーナー（下田・迫田・共通）",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#070b12",
+  "theme_color": "#070b12",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}
