@@ -1192,7 +1192,7 @@ async function checkDataUpdate(){
   try{
     const b64=await fetchEnc();const fp=fpOf(b64);
     const old=localStorage.getItem(CKF);
-    if(old && old!==fp){
+    if(old!==fp){ // 指紋なし(旧版からの移行)も「更新あり」として一度だけ再解錠を促す
       localStorage.removeItem(CK);
       const d=document.createElement('div');
       d.textContent='新しいデータがあります。タップで更新（パスワード再入力）';
