@@ -232,6 +232,11 @@ a{color:var(--accent)}
 .pace-cell.tap{cursor:pointer;transition:.15s}
 .pace-cell.tap:hover{border-color:var(--accent)}
 
+.lapsel{display:inline-flex;gap:4px;margin-left:auto;padding:3px;border-radius:10px;background:var(--glass-soft);border:1px solid var(--stroke)}
+.lapsel i{font-style:normal;font-size:11.5px;font-weight:700;color:var(--ink-dim);padding:4px 9px;border-radius:8px;cursor:pointer;transition:.14s}
+.lapsel i:hover{color:var(--ink)}
+.lapsel i.on{color:var(--accent-ink);background:linear-gradient(135deg,var(--accent),var(--accent-2))}
+
 /* ---------- burn-down（残ノルマゲージ: 習得するほど縮む） ---------- */
 .burn{margin-top:13px}
 .burn-lbl{display:flex;justify-content:space-between;font-size:11.5px;color:var(--ink-dim);margin-bottom:5px;font-weight:650}
@@ -916,25 +921,46 @@ function renderHome(){
 $('#goReview').onclick=()=>{currentDeckMode='due';$('#deckCat').value='';setChip('deck','due');show('cards');};
 $('#goFreq').onclick=()=>{currentDeckMode='freq';$('#deckCat').value='';setChip('deck','freq');show('cards');};
 
-/* ============ PACE（チェックまでの残ノルマ） ============ */
+/* ============ PACE（チェックまでの残ノルマ・周回ベース） ============ */
+function repsOf(id){const p=store[id];return p?(p.reps||0):0;}
+function lapsGoal(){return store._meta.laps||3;}
+// 残り処理回数 = Σ max(0, 目標周回数 − その問題の処理回数)
+function lapStats(){
+  const laps=lapsGoal();
+  let remain=0;
+  QA.forEach(q=>{remain+=Math.max(0,laps-repsOf(q.id));});
+  return {laps,remain,total:laps*QA.length};
+}
+function lapSelHTML(){
+  const cur=lapsGoal();
+  return `<span class="lapsel">${[1,2,3].map(n=>`<i class="${n===cur?'on':''}" data-l="${n}">${n}巡</i>`).join('')}</span>`;
+}
+function bindLapSel(){
+  $$('#pacePanel .lapsel i').forEach(b=>b.onclick=e=>{
+    e.stopPropagation();
+    store._meta.laps=+b.dataset.l;save();renderHome();
+    toast(`目標を ${b.dataset.l}巡 にしました`);
+  });
+}
 function burnHTML(s){
-  const un=s.new+s.learning;
-  const remainPct=s.total?Math.round(un/s.total*100):0;
-  return `<div class="burn"><div class="burn-lbl"><span>残りノルマ <b>${un}</b> / ${s.total}問</span><span class="got">習得 ${s.mastered}</span></div>
+  const L=lapStats();
+  const remainPct=L.total?Math.round(L.remain/L.total*100):0;
+  return `<div class="burn"><div class="burn-lbl"><span>残り処理 <b>${L.remain}</b> / ${L.total}回（${L.laps}巡）</span><span class="got">習得 ${s.mastered}</span></div>
     <div class="burnbar"><i style="width:${remainPct}%"></i></div></div>`;
 }
 function renderPace(s){
   const el=$('#pacePanel'); if(!el)return;
   el.onclick=null;
-  const untouched=s.new, unmastered=s.new+s.learning;
+  const untouched=s.new;
   const iso=store._meta.examDate;
   if(!iso){
-    el.innerHTML=`<div class="pace-head">${ic('gauge')}<b>チェックまでのペース</b></div>
+    el.innerHTML=`<div class="pace-head">${ic('gauge')}<b>チェックまでのペース</b>${lapSelHTML()}</div>
       <div class="pace-sub">チェック日を設定すると、残り日数と「1日あたり何問で間に合うか」を表示します。</div>
       ${burnHTML(s)}
       <div class="btnrow"><button class="cta sm" id="paceSet">8/27 に設定</button><button class="cta ghost sm" id="paceSet2">別の日を選ぶ</button></div>`;
     $('#paceSet').onclick=()=>{store._meta.examDate='2026-08-27';save();renderHome();toast('チェック日を 8/27 に設定しました');};
     $('#paceSet2').onclick=()=>$('#countdown').click();
+    bindLapSel();
     return;
   }
   const ex=new Date(iso+'T00:00:00');const today=new Date();today.setHours(0,0,0,0);
@@ -945,17 +971,20 @@ function renderPace(s){
     if(days<0)el.onclick=()=>$('#countdown').click();
     return;
   }
-  const p1=Math.ceil(untouched/days), p2=Math.ceil(unmastered/days);
+  const L=lapStats();
+  const p1=Math.ceil(untouched/days);          // 一巡（未着手ベース）
+  const pL=Math.ceil(L.remain/days);           // 目標周回ベース
   const goal=store._meta.goal||20;
-  const goalOk=goal>=p1;
-  el.innerHTML=`<div class="pace-head">${ic('gauge')}<b>${dl} チェックまで <span class="pace-days">${days}</span> 日</b></div>
+  const goalOk=goal>=pL;
+  el.innerHTML=`<div class="pace-head">${ic('gauge')}<b>${dl} チェックまで <span class="pace-days">${days}</span> 日</b>${lapSelHTML()}</div>
     ${burnHTML(s)}
     <div class="pace-grid">
       <div class="pace-cell ${untouched===0?'ok':''}"><b>${untouched}</b><span>未着手</span><small>1日 ${p1} 問で一巡</small></div>
-      <div class="pace-cell"><b>${unmastered}</b><span>未習得（学習中含む）</span><small>1日 ${p2} 問で全習得</small></div>
-      <div class="pace-cell tap ${goalOk?'ok':'warn'}" id="paceGoal"><b>${goal}</b><span>今の目標 / 日</span><small>${goalOk?'一巡ペース OK':'一巡まで あと '+(p1-goal)+' 問/日'}</small></div>
+      <div class="pace-cell"><b>${L.remain}</b><span>残り処理（${L.laps}巡まで）</span><small>1日 ${pL} 問で ${L.laps}巡達成</small></div>
+      <div class="pace-cell tap ${goalOk?'ok':'warn'}" id="paceGoal"><b>${goal}</b><span>今の目標 / 日</span><small>${goalOk?`${L.laps}巡ペース OK`:`${L.laps}巡まで あと ${pL-goal} 問/日`}</small></div>
     </div>`;
   $('#paceGoal').onclick=()=>$('#goalEdit').click();
+  bindLapSel();
 }
 
 /* ============ FLASHCARDS ============ */
