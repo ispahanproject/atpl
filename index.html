@@ -356,6 +356,11 @@ select:focus{border-color:var(--accent)}
 .dot{width:8px;height:8px;border-radius:50%;flex:0 0 auto;margin-top:8px}
 .dot.new{background:var(--ink-faint)} .dot.learning{background:var(--warn)} .dot.mastered{background:var(--good)}
 .count{color:var(--ink-dim);margin:0 4px 12px;font-size:13px;font-weight:600}
+.cat-sep{position:sticky;top:64px;z-index:5;display:flex;align-items:center;gap:8px;
+  padding:10px 18px;font-size:13px;font-weight:750;color:var(--cc,var(--accent));
+  background:color-mix(in srgb,var(--bg) 82%,transparent);border-bottom:1px solid var(--stroke);
+  -webkit-backdrop-filter:var(--blur);backdrop-filter:var(--blur)}
+.cat-sep .ic{width:15px;height:15px}
 
 /* ---------- modal / toast / empty ---------- */
 .modal{position:fixed;inset:0;z-index:100;background:rgba(4,8,14,.66);display:none;align-items:center;justify-content:center;padding:20px;
@@ -715,6 +720,15 @@ function toggleFlag(id){const p=prog(id);p.flag=!p.flag;save();return p.flag}
 const CAT_ORDER=['出発前確認','外部点検','航空法','気象・旅客','緊急対策','性能','システム','人間の能力・アルコール','その他'];
 function catRank(c){const i=CAT_ORDER.indexOf(c);return i<0 ? CAT_ORDER.length-1.5 : i;} // 未掲載は「その他」の直前
 function sortCats(list){return [...new Set(list)].sort((a,b)=>catRank(a)-catRank(b) || a.localeCompare(b,'ja'));}
+/* ===== 下田さん口述目次(2026.FEB)準拠の文書順 =====
+   目次の章順: 出発前確認(①〜④)→外部点検→航空法→気象・旅客→緊急対策→性能→システム→人間の能力・アルコール→追加。
+   idの数値部分＝元資料の掲載順なので、章(ファイル)順×番号で目次どおりに並ぶ。 */
+const DOC_ORDER=['shutsu1','shutsu2','shutsu3','shutsu4','gaibu','law','weather','emergency','seino','system','human','extra'];
+function docRank(q){
+  const m=/^([a-z0-9]+)-e?(\d+)/.exec(q.id)||[];
+  const si=DOC_ORDER.indexOf(m[1]);
+  return (si<0?99:si)*10000+(+m[2]||0);
+}
 
 /* ============ STATE ============ */
 const ALL = (window.ATPL_QA||[]).map((d,i)=>({...d, id:d.id||('q'+i)}));
@@ -998,10 +1012,10 @@ function buildDeck(){
   const cat=$('#deckCat').value;
   let list=QA.filter(q=>!cat||q.category===cat);
   if(currentDeckMode==='due')list=list.filter(q=>isDue(q.id));
-  else if(currentDeckMode==='freq')list=list.filter(q=>q.freq>=2).sort((a,b)=>b.freq-a.freq);
+  else if(currentDeckMode==='freq')return list.filter(q=>q.freq>=2).sort((a,b)=>b.freq-a.freq);
   else if(currentDeckMode==='weak')list=list.filter(q=>statusOf(q.id)==='learning'||isFlagged(q.id));
   else if(currentDeckMode==='new')list=list.filter(q=>statusOf(q.id)==='new');
-  return list;
+  return list.sort((a,b)=>docRank(a)-docRank(b)); // 頻出以外は目次の掲載順
 }
 function startDeck(){deck=buildDeck();di=0;flipped=false;renderCard();}
 function renderCard(){
@@ -1155,11 +1169,19 @@ function updateBrowseCountLine(){
 function renderBrowse(){
   const base=browseFilterBase();
   let list=BF.hidedone?base.filter(q=>statusOf(q.id)!=='mastered'):base;
-  list.sort((a,b)=>catRank(a.category)-catRank(b.category) || (b.freq||0)-(a.freq||0));
+  list.sort((a,b)=>docRank(a)-docRank(b)); // 下田さん口述目次の掲載順
   updateBrowseCountLine();
   const el=$('#browseList');el.innerHTML='';
   if(!list.length){el.innerHTML=BF.hidedone&&base.length?`<div class="empty">${ic('trophy')}<div>この条件の問題はすべて習得済みです！</div></div>`:'<div class="empty">該当する問題がありません</div>';return;}
+  let lastCat=null;
   list.forEach(q=>{
+    if(q.category!==lastCat){
+      lastCat=q.category;
+      const h=document.createElement('div');h.className='cat-sep';
+      h.style.setProperty('--cc',catColor(q.category));
+      h.innerHTML=`${ic(catIcon(q.category))}${esc(q.category)}`;
+      el.appendChild(h);
+    }
     const st=statusOf(q.id);
     const r=document.createElement('div');r.className='row'+(st==='mastered'?' done':'');
     r.innerHTML=`<div class="rq"><span class="dot ${st}"></span>
