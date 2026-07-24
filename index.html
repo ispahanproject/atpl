@@ -208,10 +208,49 @@ a{color:var(--accent)}
 .cat .meta{font-size:12px;color:var(--ink-dim);margin-bottom:12px}
 .cat .pct{position:absolute;top:16px;right:18px;font-weight:750;font-size:15px;color:var(--accent-2);
   font-variant-numeric:tabular-nums}
-.bar{height:7px;border-radius:99px;background:rgba(255,255,255,.08);overflow:hidden}
+.bar{height:7px;border-radius:99px;background:rgba(255,255,255,.08);overflow:hidden;display:flex}
 :root[data-theme="light"] .bar{background:rgba(20,60,70,.1)}
 .bar i{display:block;height:100%;border-radius:99px;transition:width .7s cubic-bezier(.2,.8,.2,1);
   background:linear-gradient(90deg,var(--accent),var(--accent-2))}
+.bar i.lrn{background:color-mix(in srgb,var(--warn) 55%,transparent);border-radius:0 99px 99px 0}
+.cat .meta .rest{color:var(--ink);font-weight:750}
+
+/* ---------- pace panel（チェックまでの残り） ---------- */
+.pace{padding:18px 20px;margin-bottom:18px}
+.pace-head{display:flex;align-items:center;gap:9px;font-size:14.5px;flex-wrap:wrap}
+.pace-head .ic{width:18px;height:18px;color:var(--accent-2)}
+.pace-days{font-size:23px;color:var(--accent-2);font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+.pace-sub{color:var(--ink-dim);font-size:12.5px;margin-top:6px;line-height:1.6}
+.pace .btnrow{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap}
+.pace-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:14px}
+.pace-cell{background:var(--glass-soft);border:1px solid var(--stroke);border-radius:13px;padding:12px 8px;text-align:center}
+.pace-cell b{font-size:22px;display:block;font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+.pace-cell span{font-size:11px;color:var(--ink-dim);display:block;margin-top:2px}
+.pace-cell small{font-size:10.5px;color:var(--ink-faint);display:block;margin-top:5px;line-height:1.45}
+.pace-cell.warn b{color:var(--warn)}
+.pace-cell.ok b{color:var(--good)}
+.pace-cell.tap{cursor:pointer;transition:.15s}
+.pace-cell.tap:hover{border-color:var(--accent)}
+
+/* ---------- burn-down（残ノルマゲージ: 習得するほど縮む） ---------- */
+.burn{margin-top:13px}
+.burn-lbl{display:flex;justify-content:space-between;font-size:11.5px;color:var(--ink-dim);margin-bottom:5px;font-weight:650}
+.burn-lbl .got{color:var(--good)}
+.burnbar{height:9px;border-radius:99px;background:color-mix(in srgb,var(--good) 25%,transparent);overflow:hidden}
+.burnbar i{display:block;height:100%;border-radius:99px;
+  background:linear-gradient(90deg,var(--warn),color-mix(in srgb,var(--warn) 55%,var(--bad)));
+  transition:width .8s cubic-bezier(.2,.8,.2,1)}
+
+/* ---------- 一覧: 習得済みの可視化 ---------- */
+.badge.done{color:var(--good);background:color-mix(in srgb,var(--good) 13%,transparent);
+  border:1px solid color-mix(in srgb,var(--good) 30%,transparent)}
+.row.done{background:color-mix(in srgb,var(--good) 4%,transparent)}
+.row.done .rq b{color:var(--ink-dim)}
+.row.done .dot.mastered{box-shadow:0 0 0 3px color-mix(in srgb,var(--good) 25%,transparent)}
+.minibar{display:inline-block;vertical-align:middle;width:88px;height:7px;margin-left:10px;border-radius:99px;
+  background:color-mix(in srgb,var(--good) 25%,transparent);overflow:hidden}
+.minibar i{display:block;height:100%;border-radius:99px;background:color-mix(in srgb,var(--warn) 75%,transparent);
+  transition:width .6s cubic-bezier(.2,.8,.2,1)}
 
 /* ---------- toolbar / chips / inputs ---------- */
 .toolbar{display:flex;gap:9px;align-items:center;flex-wrap:wrap;margin-bottom:18px}
@@ -477,6 +516,8 @@ select:focus{border-color:var(--accent)}
       </div>
     </div>
 
+    <div class="panel pace" id="pacePanel"></div>
+
     <div class="sec-title">カテゴリ別の進捗</div>
     <div class="grid cols-3" id="catGrid"></div>
 
@@ -541,6 +582,8 @@ select:focus{border-color:var(--accent)}
       <select id="browseCat"><option value="">全カテゴリ</option></select>
       <div class="chip" data-bfilter="freq">頻出</div>
       <div class="chip" data-bfilter="star">★苦手</div>
+      <div class="chip" data-bfilter="todo">未着手</div>
+      <div class="chip" data-bfilter="hidedone">習得済みを隠す</div>
       <div class="chip" data-bfilter="img">写真あり</div>
     </div>
     <div class="count" id="browseCount"></div>
@@ -834,7 +877,7 @@ function renderHome(){
   $('#stTotal').textContent=s.total;$('#stMastered').textContent=s.mastered;
   $('#stLearning').textContent=s.learning;$('#stDue').textContent=s.due;
   $('#streakN').textContent=(store._meta.streak||1);
-  renderToday();renderCountdown();
+  renderToday();renderCountdown();renderPace(s);
   const msgs=['今日も一歩ずつ。口述本番は「即答」が命。','頻出問題から固めるのが最短ルート。','"なぜ"まで言えると一段上。','下田さんは深掘りしてくる。根拠規程まで押さえよう。'];
   $('#heroMsg').textContent = s.due>0 ? `復習が ${s.due} 問たまっています。サッと回そう。` : msgs[s.mastered%msgs.length];
 
@@ -842,12 +885,15 @@ function renderHome(){
   cats.forEach(c=>{
     const list=QA.filter(q=>q.category===c);
     const m=list.filter(q=>statusOf(q.id)==='mastered').length;
+    const l=list.filter(q=>statusOf(q.id)==='learning').length;
+    const rest=list.length-m-l;
     const pct=list.length?Math.round(m/list.length*100):0;
+    const pctL=list.length?Math.round(l/list.length*100):0;
     const el=document.createElement('div');el.className='panel cat';
     el.style.setProperty('--cc',catColor(c));
     el.innerHTML=`<div class="cat-ico">${ic(catIcon(c))}</div><div class="pct">${pct}%</div><h3>${esc(c)}</h3>
-      <div class="meta">${list.length}問 ・ 習得 ${m}</div>
-      <div class="bar"><i style="width:${pct}%"></i></div>`;
+      <div class="meta"><b class="rest">残り ${rest}</b> ・ 学習中 ${l} ・ 習得 ${m} / ${list.length}問</div>
+      <div class="bar"><i style="width:${pct}%"></i><i class="lrn" style="width:${pctL}%"></i></div>`;
     el.onclick=()=>{$('#deckCat').value=c;currentDeckMode='all';setChip('deck','all');show('cards');};
     cg.appendChild(el);
   });
@@ -869,6 +915,48 @@ function renderHome(){
 }
 $('#goReview').onclick=()=>{currentDeckMode='due';$('#deckCat').value='';setChip('deck','due');show('cards');};
 $('#goFreq').onclick=()=>{currentDeckMode='freq';$('#deckCat').value='';setChip('deck','freq');show('cards');};
+
+/* ============ PACE（チェックまでの残ノルマ） ============ */
+function burnHTML(s){
+  const un=s.new+s.learning;
+  const remainPct=s.total?Math.round(un/s.total*100):0;
+  return `<div class="burn"><div class="burn-lbl"><span>残りノルマ <b>${un}</b> / ${s.total}問</span><span class="got">習得 ${s.mastered}</span></div>
+    <div class="burnbar"><i style="width:${remainPct}%"></i></div></div>`;
+}
+function renderPace(s){
+  const el=$('#pacePanel'); if(!el)return;
+  el.onclick=null;
+  const untouched=s.new, unmastered=s.new+s.learning;
+  const iso=store._meta.examDate;
+  if(!iso){
+    el.innerHTML=`<div class="pace-head">${ic('gauge')}<b>チェックまでのペース</b></div>
+      <div class="pace-sub">チェック日を設定すると、残り日数と「1日あたり何問で間に合うか」を表示します。</div>
+      ${burnHTML(s)}
+      <div class="btnrow"><button class="cta sm" id="paceSet">8/27 に設定</button><button class="cta ghost sm" id="paceSet2">別の日を選ぶ</button></div>`;
+    $('#paceSet').onclick=()=>{store._meta.examDate='2026-08-27';save();renderHome();toast('チェック日を 8/27 に設定しました');};
+    $('#paceSet2').onclick=()=>$('#countdown').click();
+    return;
+  }
+  const ex=new Date(iso+'T00:00:00');const today=new Date();today.setHours(0,0,0,0);
+  const days=Math.round((ex-today)/DAY);
+  const dl=`${ex.getMonth()+1}/${ex.getDate()}`;
+  if(days<=0){
+    el.innerHTML=`<div class="pace-head">${ic('plane')}<b>${days===0?'本番当日。いってらっしゃい、機長。':'チェック日を過ぎています（タップで再設定）'}</b></div>`;
+    if(days<0)el.onclick=()=>$('#countdown').click();
+    return;
+  }
+  const p1=Math.ceil(untouched/days), p2=Math.ceil(unmastered/days);
+  const goal=store._meta.goal||20;
+  const goalOk=goal>=p1;
+  el.innerHTML=`<div class="pace-head">${ic('gauge')}<b>${dl} チェックまで <span class="pace-days">${days}</span> 日</b></div>
+    ${burnHTML(s)}
+    <div class="pace-grid">
+      <div class="pace-cell ${untouched===0?'ok':''}"><b>${untouched}</b><span>未着手</span><small>1日 ${p1} 問で一巡</small></div>
+      <div class="pace-cell"><b>${unmastered}</b><span>未習得（学習中含む）</span><small>1日 ${p2} 問で全習得</small></div>
+      <div class="pace-cell tap ${goalOk?'ok':'warn'}" id="paceGoal"><b>${goal}</b><span>今の目標 / 日</span><small>${goalOk?'一巡ペース OK':'一巡まで あと '+(p1-goal)+' 問/日'}</small></div>
+    </div>`;
+  $('#paceGoal').onclick=()=>$('#goalEdit').click();
+}
 
 /* ============ FLASHCARDS ============ */
 let deck=[],di=0,flipped=false,currentDeckMode='all';
@@ -957,12 +1045,16 @@ $('#flash').onclick=e=>{
 $('#rateBar').querySelectorAll('button').forEach(b=>b.onclick=()=>{
   if(!deck[di])return;
   if(!flipped){flip();return;} // 答えを見る前の採点は「めくる」操作として扱う
-  const q=deck[di];const g=+b.dataset.q;grade(q.id,g);bumpToday();
+  const q=deck[di];const g=+b.dataset.q;
+  const prevSt=statusOf(q.id);
+  grade(q.id,g);bumpToday();
+  const nowMastered = prevSt!=='mastered' && statusOf(q.id)==='mastered';
   if(g===0){const card=deck.splice(di,1)[0];deck.splice(Math.min(di+3,deck.length),0,card);}
   else di++;
   renderCard();updateDueUI();
   const gi=goalInfo();
-  if(gi.done && gi.count===gi.goal)toast('今日の目標を達成！');
+  if(nowMastered){const rem=QA.filter(x=>statusOf(x.id)!=='mastered').length;toast(`習得！ ノルマ残り ${rem} 問`);}
+  else if(gi.done && gi.count===gi.goal)toast('今日の目標を達成！');
   else if(g===0)toast('少し後でもう一度出ます');
   else if(g>=2)toast(g===3?'完璧':'よし');
 });
@@ -996,12 +1088,10 @@ function bindRowToggle(r){
   const rq=r.querySelector('.rq');
   (rq||r).onclick=()=>{const open=r.classList.toggle('open');if(open)materializeImgs(r);};
 }
-let bFreq=false,bImg=false,bStar=false;
+const BF={freq:false,star:false,todo:false,hidedone:false,img:false};
 $$('.chip[data-bfilter]').forEach(c=>c.onclick=()=>{
   const k=c.dataset.bfilter;
-  if(k==='freq'){bFreq=!bFreq;c.classList.toggle('active',bFreq);}
-  else if(k==='star'){bStar=!bStar;c.classList.toggle('active',bStar);}
-  else{bImg=!bImg;c.classList.toggle('active',bImg);}
+  BF[k]=!BF[k];c.classList.toggle('active',BF[k]);
   renderBrowse();
 });
 function updClear(inp,btn){$(btn).classList.toggle('hidden',!$(inp).value);}
@@ -1011,18 +1101,24 @@ $('#searchClear').onclick=()=>{$('#search').value='';updClear('#search','#search
 $('#browseCat').onchange=renderBrowse;
 function renderBrowse(){
   const term=nrm($('#search').value.trim());const cat=$('#browseCat').value;
-  let list=QA.filter(q=>(!cat||q.category===cat)
-    &&(!bFreq||q.freq>=2)&&(!bImg||q.img)&&(!bStar||isFlagged(q.id))
+  const base=QA.filter(q=>(!cat||q.category===cat)
+    &&(!BF.freq||q.freq>=2)&&(!BF.img||q.img)&&(!BF.star||isFlagged(q.id))
+    &&(!BF.todo||statusOf(q.id)==='new')
     &&(!term||nrm(q.q+' '+q.a+' '+(q.refs||[]).join(' ')+' '+(q.subcategory||'')).includes(term)));
+  const dm=base.filter(q=>statusOf(q.id)==='mastered').length;
+  const remain=base.length-dm;
+  let list=BF.hidedone?base.filter(q=>statusOf(q.id)!=='mastered'):base;
   list.sort((a,b)=>catRank(a.category)-catRank(b.category) || (b.freq||0)-(a.freq||0));
-  $('#browseCount').textContent=`${list.length} 問`;
+  $('#browseCount').innerHTML=`${base.length} 問 ・ <span style="color:var(--good);font-weight:700">習得 ${dm}</span> ・ <b>残り ${remain}</b><span class="minibar"><i style="width:${base.length?Math.round(remain/base.length*100):0}%"></i></span>`;
   const el=$('#browseList');el.innerHTML='';
-  if(!list.length){el.innerHTML='<div class="empty">該当する問題がありません</div>';return;}
+  if(!list.length){el.innerHTML=BF.hidedone&&base.length?`<div class="empty">${ic('trophy')}<div>この条件の問題はすべて習得済みです！</div></div>`:'<div class="empty">該当する問題がありません</div>';return;}
   list.forEach(q=>{
-    const r=document.createElement('div');r.className='row';
-    r.innerHTML=`<div class="rq"><span class="dot ${statusOf(q.id)}"></span>
+    const st=statusOf(q.id);
+    const r=document.createElement('div');r.className='row'+(st==='mastered'?' done':'');
+    r.innerHTML=`<div class="rq"><span class="dot ${st}"></span>
       <div style="flex:1"><b>${esc(q.q)}</b>
-      <div class="tags">${q.freq>0?`<span class="badge freq">${ic('star')}本番${q.freq}回</span>`:''}
+      <div class="tags">${st==='mastered'?`<span class="badge done">${ic('check')}習得済み</span>`:''}
+      ${q.freq>0?`<span class="badge freq">${ic('star')}本番${q.freq}回</span>`:''}
       ${catBadge(q.category)}
       ${q.subcategory?`<span class="badge sub">${esc(q.subcategory)}</span>`:''}
       ${q.img?`<span class="badge sub">${ic('image')}写真</span>`:''}</div></div>
