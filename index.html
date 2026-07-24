@@ -434,6 +434,11 @@ select:focus{border-color:var(--accent)}
 .row .star.on{color:var(--gold)}
 .row .star .ic{width:17px;height:17px}
 .row .star.on .ic{fill:currentColor;stroke:none}
+.row .donebtn{cursor:pointer;color:var(--ink-faint);padding:12px;margin:-9px -4px -9px -6px;flex:0 0 auto;transition:.14s;border-radius:10px}
+.row .donebtn:hover{color:var(--good)}
+.row .donebtn.on{color:var(--good);background:color-mix(in srgb,var(--good) 12%,transparent)}
+.row .donebtn .ic{width:17px;height:17px;stroke-width:2.4}
+.row.vanish{opacity:0;transform:translateX(28px);transition:opacity .3s,transform .3s}
 
 /* ---------- mobile ---------- */
 .flash,.tab,.chip,.cta,.rate button,.iconbtn{touch-action:manipulation}
@@ -481,7 +486,6 @@ select:focus{border-color:var(--accent)}
 <div class="wrap">
   <div class="srcbar" id="srcbar">
     <div class="srcseg active" data-src="shimoda"><svg class="ic" viewBox="0 0 24 24"><path d="M5 5a2 2 0 0 1 2-2h12v15H7a2 2 0 0 0-2 2z"/><path d="M19 18H7a2 2 0 0 0-2 2"/></svg>下田さん<span class="srcn" id="srcnSh"></span></div>
-    <div class="srcseg" data-src="sakoda"><svg class="ic" viewBox="0 0 24 24"><path d="M5 5a2 2 0 0 1 2-2h12v15H7a2 2 0 0 0-2 2z"/><path d="M19 18H7a2 2 0 0 0-2 2"/></svg>迫田さん<span class="srcn" id="srcnSk"></span></div>
     <div class="srcseg" data-src="common"><svg class="ic" viewBox="0 0 24 24"><path d="M10 12a4 4 0 1 1-4-4"/><path d="M14 12a4 4 0 1 0 4-4"/><path d="M9 12h6"/></svg>共通<span class="srcn" id="srcnCm"></span></div>
   </div>
   <div class="tabs" id="tabs">
@@ -1128,17 +1132,31 @@ const dRenderBrowse=debounce(renderBrowse,160);
 $('#search').addEventListener('input',()=>{updClear('#search','#searchClear');dRenderBrowse();});
 $('#searchClear').onclick=()=>{$('#search').value='';updClear('#search','#searchClear');renderBrowse();$('#search').focus();};
 $('#browseCat').onchange=renderBrowse;
-function renderBrowse(){
+/* 一覧から直接「習得済み」にする */
+function setMastered(id,on){
+  const p=prog(id);
+  if(on){p.status='mastered';p.reps=(p.reps||0)+1;p.interval=Math.max(p.interval||0,14);p.due=now()+p.interval*DAY;}
+  else{p.status=(p.reps||0)>1?'learning':'new';}
+  save();
+}
+function browseFilterBase(){
   const term=nrm($('#search').value.trim());const cat=$('#browseCat').value;
-  const base=QA.filter(q=>(!cat||q.category===cat)
+  return QA.filter(q=>(!cat||q.category===cat)
     &&(!BF.freq||q.freq>=2)&&(!BF.img||q.img)&&(!BF.star||isFlagged(q.id))
     &&(!BF.todo||statusOf(q.id)==='new')
     &&(!term||nrm(q.q+' '+q.a+' '+(q.refs||[]).join(' ')+' '+(q.subcategory||'')).includes(term)));
+}
+function updateBrowseCountLine(){
+  const base=browseFilterBase();
   const dm=base.filter(q=>statusOf(q.id)==='mastered').length;
   const remain=base.length-dm;
+  $('#browseCount').innerHTML=`${base.length} 問 ・ <span style="color:var(--good);font-weight:700">習得 ${dm}</span> ・ <b>残り ${remain}</b><span class="minibar"><i style="width:${base.length?Math.round(remain/base.length*100):0}%"></i></span>`;
+}
+function renderBrowse(){
+  const base=browseFilterBase();
   let list=BF.hidedone?base.filter(q=>statusOf(q.id)!=='mastered'):base;
   list.sort((a,b)=>catRank(a.category)-catRank(b.category) || (b.freq||0)-(a.freq||0));
-  $('#browseCount').innerHTML=`${base.length} 問 ・ <span style="color:var(--good);font-weight:700">習得 ${dm}</span> ・ <b>残り ${remain}</b><span class="minibar"><i style="width:${base.length?Math.round(remain/base.length*100):0}%"></i></span>`;
+  updateBrowseCountLine();
   const el=$('#browseList');el.innerHTML='';
   if(!list.length){el.innerHTML=BF.hidedone&&base.length?`<div class="empty">${ic('trophy')}<div>この条件の問題はすべて習得済みです！</div></div>`:'<div class="empty">該当する問題がありません</div>';return;}
   list.forEach(q=>{
@@ -1151,6 +1169,7 @@ function renderBrowse(){
       ${catBadge(q.category)}
       ${q.subcategory?`<span class="badge sub">${esc(q.subcategory)}</span>`:''}
       ${q.img?`<span class="badge sub">${ic('image')}写真</span>`:''}</div></div>
+      <span class="donebtn ${st==='mastered'?'on':''}" title="習得済みにする">${ic('check')}</span>
       <span class="star ${isFlagged(q.id)?'on':''}" title="苦手マーク">${ic('star')}</span></div>
       <div class="ra">${formatAnswer(q.a)}
       <div class="refs">${(q.refs||[]).map(x=>`<span class="ref">${ic('link')}${esc(x)}</span>`).join('')}</div>
@@ -1158,6 +1177,25 @@ function renderBrowse(){
     bindRowToggle(r);
     const star=r.querySelector('.star');
     star.onclick=e=>{e.stopPropagation();star.classList.toggle('on',toggleFlag(q.id));};
+    const db=r.querySelector('.donebtn');
+    db.onclick=e=>{
+      e.stopPropagation();
+      const on=statusOf(q.id)!=='mastered';
+      setMastered(q.id,on);
+      db.classList.toggle('on',on);
+      r.classList.toggle('done',on);
+      r.querySelector('.dot').className='dot '+statusOf(q.id);
+      const tags=r.querySelector('.tags');
+      const badge=tags.querySelector('.badge.done');
+      if(on&&!badge)tags.insertAdjacentHTML('afterbegin',`<span class="badge done">${ic('check')}習得済み</span>`);
+      else if(!on&&badge)badge.remove();
+      updateBrowseCountLine();updateDueUI();
+      if(on){
+        const rem=QA.filter(x=>statusOf(x.id)!=='mastered').length;
+        toast(`習得！ ノルマ残り ${rem} 問`);
+        if(BF.hidedone||BF.todo){r.classList.add('vanish');setTimeout(()=>r.remove(),320);}
+      }else toast('習得を取り消しました');
+    };
     el.appendChild(r);
   });
 }
@@ -1280,8 +1318,8 @@ if(!ALL.length){
   document.querySelector('.wrap').innerHTML='<div class="empty" style="margin-top:60px">データ(data/qa.js)が読み込まれていません。</div>';
 }else{
   $('#srcnSh').textContent=ALL.filter(q=>q.source==='shimoda').length;
-  $('#srcnSk').textContent=ALL.filter(q=>q.source==='sakoda').length;
   $('#srcnCm').textContent=COMMON.length;
+  if(store._src==='sakoda'){store._src='shimoda';save();} // 迫田タブ廃止に伴う移行
   $('#backupBtn').innerHTML=ic('download');
   $('#verLine').textContent=META.build?`データ更新: ${META.build}`:'';
   // デスクトップのみキーボード操作のヒントを表示
