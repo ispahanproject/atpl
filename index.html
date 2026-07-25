@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<title>ATPL口述トレーナー｜統合（下田・迫田・共通）</title>
+<title>ATPL口述トレーナー｜下田さんORAL</title>
 <meta name="theme-color" content="#070b12">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -495,10 +495,6 @@ select:focus{border-color:var(--accent)}
 </div></div>
 
 <div class="wrap">
-  <div class="srcbar" id="srcbar">
-    <div class="srcseg active" data-src="shimoda"><svg class="ic" viewBox="0 0 24 24"><path d="M5 5a2 2 0 0 1 2-2h12v15H7a2 2 0 0 0-2 2z"/><path d="M19 18H7a2 2 0 0 0-2 2"/></svg>下田さん<span class="srcn" id="srcnSh"></span></div>
-    <div class="srcseg" data-src="common"><svg class="ic" viewBox="0 0 24 24"><path d="M10 12a4 4 0 1 1-4-4"/><path d="M14 12a4 4 0 1 0 4-4"/><path d="M9 12h6"/></svg>共通<span class="srcn" id="srcnCm"></span></div>
-  </div>
   <div class="tabs" id="tabs">
     <div class="tab active" data-view="home"><svg class="ic" viewBox="0 0 24 24"><path d="M3 10.5 12 3l9 7.5"/><path d="M5.5 9.5V20a1 1 0 0 0 1 1h11a1 1 0 0 0 1-1V9.5"/></svg>ホーム</div>
     <div class="tab" data-view="browse"><svg class="ic" viewBox="0 0 24 24"><path d="M8 6h12M8 12h12M8 18h12"/><circle class="fill" cx="3.6" cy="6" r="1.3"/><circle class="fill" cx="3.6" cy="12" r="1.3"/><circle class="fill" cx="3.6" cy="18" r="1.3"/></svg><span class="t-full">一覧・検索</span><span class="t-short">一覧</span></div>
@@ -1373,9 +1369,7 @@ fillSelect('#commonCat',COMMON_CATS);
 if(!ALL.length){
   document.querySelector('.wrap').innerHTML='<div class="empty" style="margin-top:60px">データ(data/qa.js)が読み込まれていません。</div>';
 }else{
-  $('#srcnSh').textContent=ALL.filter(q=>q.source==='shimoda').length;
-  $('#srcnCm').textContent=COMMON.length;
-  if(store._src==='sakoda'){store._src='shimoda';save();} // 迫田タブ廃止に伴う移行
+  if(store._src!=='shimoda'){store._src='shimoda';save();} // 迫田・共通タブ廃止に伴う移行（下田さん一本化）
   $('#backupBtn').innerHTML=ic('download');
   $('#verLine').textContent=META.build?`データ更新: ${META.build}`:'';
   // デスクトップのみキーボード操作のヒントを表示
@@ -1446,7 +1440,7 @@ function showGate(){
       <svg style="width:28px;height:28px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round" viewBox="0 0 24 24"><path d="M2 14l9-2 4-9 2 1-2 8 6-1 1 2-6 2-2 6-2-1 1-6-7 2z"/></svg>
     </div>
     <h2 style="margin:0 0 5px;font-size:19px;font-weight:700">ATPL口述トレーナー</h2>
-    <p style="color:var(--ink-dim);font-size:13px;margin:0 0 22px">下田・迫田・共通 ・ パスワードを入力</p>
+    <p style="color:var(--ink-dim);font-size:13px;margin:0 0 22px">下田さんORAL ・ パスワードを入力</p>
     <form id="gateForm" style="margin:0">
     <input id="gatePass" name="password" type="password" autocomplete="current-password" placeholder="パスワード" style="width:100%;font:inherit;font-size:16px;color:var(--ink);background:var(--glass);border:1px solid var(--stroke);border-radius:13px;padding:12px 14px;outline:none;-webkit-backdrop-filter:var(--blur);backdrop-filter:var(--blur);box-sizing:border-box">
     <div id="gateErr" style="color:var(--bad);font-size:12px;min-height:16px;margin:8px 0 4px"></div>
