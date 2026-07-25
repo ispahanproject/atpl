@@ -249,6 +249,8 @@ a{color:var(--accent)}
 /* ---------- 一覧: 習得済みの可視化 ---------- */
 .badge.done{color:var(--good);background:color-mix(in srgb,var(--good) 13%,transparent);
   border:1px solid color-mix(in srgb,var(--good) 30%,transparent)}
+.badge.studied{color:var(--warn);background:color-mix(in srgb,var(--warn) 13%,transparent);
+  border:1px solid color-mix(in srgb,var(--warn) 30%,transparent)}
 .row.done{background:color-mix(in srgb,var(--good) 4%,transparent)}
 .row.done .rq b{color:var(--ink-dim)}
 .row.done .dot.mastered{box-shadow:0 0 0 3px color-mix(in srgb,var(--good) 25%,transparent)}
@@ -443,6 +445,10 @@ select:focus{border-color:var(--accent)}
 .row .donebtn:hover{color:var(--good)}
 .row .donebtn.on{color:var(--good);background:color-mix(in srgb,var(--good) 12%,transparent)}
 .row .donebtn .ic{width:17px;height:17px;stroke-width:2.4}
+.row .studybtn{cursor:pointer;color:var(--ink-faint);padding:12px;margin:-9px -4px -9px -6px;flex:0 0 auto;transition:.14s;border-radius:10px}
+.row .studybtn:hover{color:var(--warn)}
+.row .studybtn.on{color:var(--warn);background:color-mix(in srgb,var(--warn) 12%,transparent)}
+.row .studybtn .ic{width:17px;height:17px}
 .row.vanish{opacity:0;transform:translateX(28px);transition:opacity .3s,transform .3s}
 
 /* ---------- mobile ---------- */
@@ -915,7 +921,7 @@ function renderHome(){
     const el=document.createElement('div');el.className='panel cat';
     el.style.setProperty('--cc',catColor(c));
     el.innerHTML=`<div class="cat-ico">${ic(catIcon(c))}</div><div class="pct">${pct}%</div><h3>${esc(c)}</h3>
-      <div class="meta"><b class="rest">残り ${rest}</b> ・ 学習中 ${l} ・ 習得 ${m} / ${list.length}問</div>
+      <div class="meta"><b class="rest">残り ${rest}</b> ・ 勉強済 ${l} ・ 習得 ${m} / ${list.length}問</div>
       <div class="bar"><i style="width:${pct}%"></i><i class="lrn" style="width:${pctL}%"></i></div>`;
     el.onclick=()=>{$('#deckCat').value=c;currentDeckMode='all';setChip('deck','all');show('cards');};
     cg.appendChild(el);
@@ -1153,6 +1159,28 @@ function setMastered(id,on){
   else{p.status=(p.reps||0)>1?'learning':'new';}
   save();
 }
+/* 一覧から「勉強済（一度やった）」にする — 習得の一歩手前。3巡カウントにも1回分計上 */
+function setStudied(id,on){
+  const p=prog(id);
+  if(on){p.status='learning';p.reps=(p.reps||0)+1;p.interval=Math.max(p.interval||0,1);p.due=now()+p.interval*DAY;}
+  else{p.status='new';}
+  save();
+}
+/* 行の見た目（dot/バッジ/ボタン）を現在のステータスに同期 */
+function refreshRowState(r,q){
+  const st=statusOf(q.id);
+  r.classList.toggle('done',st==='mastered');
+  r.querySelector('.dot').className='dot '+st;
+  const tags=r.querySelector('.tags');
+  const db=tags.querySelector('.badge.done'), sb=tags.querySelector('.badge.studied');
+  if(st==='mastered'&&!db)tags.insertAdjacentHTML('afterbegin',`<span class="badge done">${ic('check')}習得済み</span>`);
+  else if(st!=='mastered'&&db)db.remove();
+  if(st==='learning'&&!sb)tags.insertAdjacentHTML('afterbegin',`<span class="badge studied">${ic('book')}勉強済</span>`);
+  else if(st!=='learning'&&sb)sb.remove();
+  const dbtn=r.querySelector('.donebtn'), sbtn=r.querySelector('.studybtn');
+  if(dbtn)dbtn.classList.toggle('on',st==='mastered');
+  if(sbtn)sbtn.classList.toggle('on',st==='learning');
+}
 function browseFilterBase(){
   const term=nrm($('#search').value.trim());const cat=$('#browseCat').value;
   return QA.filter(q=>(!cat||q.category===cat)
@@ -1163,8 +1191,9 @@ function browseFilterBase(){
 function updateBrowseCountLine(){
   const base=browseFilterBase();
   const dm=base.filter(q=>statusOf(q.id)==='mastered').length;
+  const dl=base.filter(q=>statusOf(q.id)==='learning').length;
   const remain=base.length-dm;
-  $('#browseCount').innerHTML=`${base.length} 問 ・ <span style="color:var(--good);font-weight:700">習得 ${dm}</span> ・ <b>残り ${remain}</b><span class="minibar"><i style="width:${base.length?Math.round(remain/base.length*100):0}%"></i></span>`;
+  $('#browseCount').innerHTML=`${base.length} 問 ・ <span style="color:var(--warn);font-weight:700">勉強済 ${dl}</span> ・ <span style="color:var(--good);font-weight:700">習得 ${dm}</span> ・ <b>残り ${remain}</b><span class="minibar"><i style="width:${base.length?Math.round(remain/base.length*100):0}%"></i></span>`;
 }
 function renderBrowse(){
   const base=browseFilterBase();
@@ -1186,11 +1215,12 @@ function renderBrowse(){
     const r=document.createElement('div');r.className='row'+(st==='mastered'?' done':'');
     r.innerHTML=`<div class="rq"><span class="dot ${st}"></span>
       <div style="flex:1"><b>${esc(q.q)}</b>
-      <div class="tags">${st==='mastered'?`<span class="badge done">${ic('check')}習得済み</span>`:''}
+      <div class="tags">${st==='mastered'?`<span class="badge done">${ic('check')}習得済み</span>`:''}${st==='learning'?`<span class="badge studied">${ic('book')}勉強済</span>`:''}
       ${q.freq>0?`<span class="badge freq">${ic('star')}本番${q.freq}回</span>`:''}
       ${catBadge(q.category)}
       ${q.subcategory?`<span class="badge sub">${esc(q.subcategory)}</span>`:''}
       ${q.img?`<span class="badge sub">${ic('image')}写真</span>`:''}</div></div>
+      <span class="studybtn ${st==='learning'?'on':''}" title="勉強済にする">${ic('book')}</span>
       <span class="donebtn ${st==='mastered'?'on':''}" title="習得済みにする">${ic('check')}</span>
       <span class="star ${isFlagged(q.id)?'on':''}" title="苦手マーク">${ic('star')}</span></div>
       <div class="ra">${formatAnswer(q.a)}
@@ -1199,24 +1229,28 @@ function renderBrowse(){
     bindRowToggle(r);
     const star=r.querySelector('.star');
     star.onclick=e=>{e.stopPropagation();star.classList.toggle('on',toggleFlag(q.id));};
-    const db=r.querySelector('.donebtn');
-    db.onclick=e=>{
+    r.querySelector('.donebtn').onclick=e=>{
       e.stopPropagation();
       const on=statusOf(q.id)!=='mastered';
       setMastered(q.id,on);
-      db.classList.toggle('on',on);
-      r.classList.toggle('done',on);
-      r.querySelector('.dot').className='dot '+statusOf(q.id);
-      const tags=r.querySelector('.tags');
-      const badge=tags.querySelector('.badge.done');
-      if(on&&!badge)tags.insertAdjacentHTML('afterbegin',`<span class="badge done">${ic('check')}習得済み</span>`);
-      else if(!on&&badge)badge.remove();
+      refreshRowState(r,q);
       updateBrowseCountLine();updateDueUI();
       if(on){
         const rem=QA.filter(x=>statusOf(x.id)!=='mastered').length;
         toast(`習得！ ノルマ残り ${rem} 問`);
         if(BF.hidedone||BF.todo){r.classList.add('vanish');setTimeout(()=>r.remove(),320);}
       }else toast('習得を取り消しました');
+    };
+    r.querySelector('.studybtn').onclick=e=>{
+      e.stopPropagation();
+      const on=statusOf(q.id)!=='learning';
+      setStudied(q.id,on);
+      refreshRowState(r,q);
+      updateBrowseCountLine();updateDueUI();
+      if(on){
+        toast('勉強済にしました');
+        if(BF.todo){r.classList.add('vanish');setTimeout(()=>r.remove(),320);}
+      }else toast('勉強済を取り消しました');
     };
     el.appendChild(r);
   });
