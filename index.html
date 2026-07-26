@@ -1315,8 +1315,11 @@ function renderBrowse(){
       refreshRowState(r,q);
       updateBrowseCountLine();updateDueUI();
       if(on){
+        bumpToday();renderToday();          // 一覧で処理した分も「今日の目標」に計上
         const rem=QA.filter(x=>statusOf(x.id)!=='mastered').length;
-        toast(`習得！ ノルマ残り ${rem} 問`);
+        const gi=goalInfo();
+        toast(gi.done&&gi.count===gi.goal ? '今日の目標を達成！'
+             : `習得！ ノルマ残り ${rem} 問（今日 ${gi.count}/${gi.goal}）`);
         if(BF.hidedone||BF.todo){r.classList.add('vanish');setTimeout(()=>r.remove(),320);}
       }else toast('習得を取り消しました');
     };
@@ -1327,7 +1330,10 @@ function renderBrowse(){
       refreshRowState(r,q);
       updateBrowseCountLine();updateDueUI();
       if(on){
-        toast('勉強済にしました');
+        bumpToday();renderToday();          // 勉強済も1回の処理として計上
+        const gi=goalInfo();
+        toast(gi.done&&gi.count===gi.goal ? '今日の目標を達成！'
+             : `勉強済にしました（今日 ${gi.count}/${gi.goal}）`);
         if(BF.todo){r.classList.add('vanish');setTimeout(()=>r.remove(),320);}
       }else toast('勉強済を取り消しました');
     };
