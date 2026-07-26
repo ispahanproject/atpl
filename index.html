@@ -237,6 +237,38 @@ a{color:var(--accent)}
 .lapsel i:hover{color:var(--ink)}
 .lapsel i.on{color:var(--accent-ink);background:linear-gradient(135deg,var(--accent),var(--accent-2))}
 
+/* ---------- 学習カレンダー ---------- */
+.cal{padding:18px 20px;margin-bottom:18px}
+.cal-head{display:flex;align-items:center;gap:9px;font-size:14.5px;font-weight:700;flex-wrap:wrap}
+.cal-head .ic{width:18px;height:18px;color:var(--accent-2)}
+.cal-nav{margin-left:auto;display:inline-flex;gap:5px;align-items:center}
+.cal-nav button{cursor:pointer;font:inherit;font-size:12px;font-weight:700;color:var(--ink-dim);
+  background:var(--glass-soft);border:1px solid var(--stroke);border-radius:9px;padding:5px 10px}
+.cal-nav button:hover{color:var(--ink);border-color:var(--stroke-2)}
+.cal-nav button[disabled]{opacity:.35;cursor:default}
+.cal-ym{font-size:13px;font-weight:750;min-width:88px;text-align:center;font-variant-numeric:tabular-nums}
+.cal-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:5px;margin-top:14px}
+.cal-dow{text-align:center;font-size:10.5px;font-weight:700;color:var(--ink-faint);padding-bottom:2px}
+.cal-dow.sun{color:#e08a8a}.cal-dow.sat{color:#7ba7e0}
+.cal-cell{aspect-ratio:1;border-radius:9px;display:grid;place-items:center;position:relative;
+  background:rgba(255,255,255,.05);border:1px solid transparent;font-size:11.5px;font-weight:700;
+  color:var(--ink-faint);font-variant-numeric:tabular-nums}
+:root[data-theme="light"] .cal-cell{background:rgba(20,60,70,.055)}
+.cal-cell.l1{background:color-mix(in srgb,var(--accent) 22%,transparent);color:var(--ink)}
+.cal-cell.l2{background:color-mix(in srgb,var(--accent) 42%,transparent);color:var(--ink)}
+.cal-cell.l3{background:color-mix(in srgb,var(--accent) 66%,transparent);color:#04231f}
+.cal-cell.l4{background:linear-gradient(140deg,var(--accent),var(--accent-2));color:#04231f}
+.cal-cell.cal-today{border-color:var(--accent-2);box-shadow:0 0 0 2px color-mix(in srgb,var(--accent-2) 30%,transparent)}
+.cal-cell.cal-exam{border-color:var(--gold);box-shadow:0 0 0 2px color-mix(in srgb,var(--gold) 32%,transparent)}
+.cal-cell .n{position:absolute;bottom:2px;right:4px;font-size:8.5px;font-weight:800;opacity:.9}
+.cal-stats{display:flex;gap:8px;margin-top:14px;flex-wrap:wrap}
+.cal-stat{flex:1;min-width:78px;background:var(--glass-soft);border:1px solid var(--stroke);border-radius:12px;
+  padding:10px 8px;text-align:center}
+.cal-stat b{display:block;font-size:19px;font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+.cal-stat span{display:block;font-size:10.5px;color:var(--ink-dim);margin-top:2px}
+.cal-legend{display:flex;align-items:center;gap:6px;margin-top:11px;font-size:10.5px;color:var(--ink-faint)}
+.cal-legend i{width:12px;height:12px;border-radius:4px;display:inline-block}
+
 /* ---------- burn-down（残ノルマゲージ: 習得するほど縮む） ---------- */
 .burn{margin-top:13px}
 .burn-lbl{display:flex;justify-content:space-between;font-size:11.5px;color:var(--ink-dim);margin-bottom:5px;font-weight:650}
@@ -552,6 +584,8 @@ select:focus{border-color:var(--accent)}
 
     <div class="panel pace" id="pacePanel"></div>
 
+    <div class="panel cal" id="calPanel"></div>
+
     <div class="sec-title">カテゴリ別の進捗</div>
     <div class="grid cols-3" id="catGrid"></div>
 
@@ -808,10 +842,15 @@ function esc(s){return (s||'').replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':
 function toast(msg){const t=$('#toast');t.innerHTML=ic('check')+esc(msg);t.classList.add('show');setTimeout(()=>t.classList.remove('show'),1600)}
 
 /* ============ DAILY GOAL ============ */
+/* 学習履歴: store._meta.log = { 'YYYY-MM-DD': 処理数 } */
+const dkey=d=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
 function bumpToday(){
-  const today=new Date().toDateString();const m=store._meta;
+  const now=new Date(), today=now.toDateString(), m=store._meta;
   if(m.today!==today){m.today=today;m.todayCount=0;}
-  m.todayCount=(m.todayCount||0)+1;save();
+  m.todayCount=(m.todayCount||0)+1;
+  m.log=m.log||{};
+  const k=dkey(now); m.log[k]=(m.log[k]||0)+1;
+  save();
 }
 function goalInfo(){
   const today=new Date().toDateString();const m=store._meta;
@@ -936,8 +975,8 @@ function renderHome(){
   $('#stTotal').textContent=s.total;$('#stMastered').textContent=s.mastered;
   $('#stNew').textContent=s.new;
   $('#stLearning').textContent=s.learning;$('#stDue').textContent=s.due;
-  $('#streakN').textContent=(store._meta.streak||1);
-  renderToday();renderCountdown();renderPace(s);
+  $('#streakN').textContent=studyStats().streak;   // 実際に学習した日の連続数
+  renderToday();renderCountdown();renderPace(s);renderCalendar();
   const msgs=['今日も一歩ずつ。口述本番は「即答」が命。','頻出問題から固めるのが最短ルート。','"なぜ"まで言えると一段上。','下田さんは深掘りしてくる。根拠規程まで押さえよう。'];
   $('#heroMsg').textContent = s.due>0 ? `復習が ${s.due} 問たまっています。サッと回そう。` : msgs[s.mastered%msgs.length];
 
@@ -975,6 +1014,72 @@ function renderHome(){
 }
 $('#goReview').onclick=()=>{currentDeckMode='due';$('#deckCat').value='';setChip('deck','due');show('cards');};
 $('#goFreq').onclick=()=>{currentDeckMode='freq';$('#deckCat').value='';setChip('deck','freq');show('cards');};
+
+/* ============ 学習カレンダー ============ */
+let calYM=null;   // {y,m} 表示中の年月（null=今月）
+function calLevel(n,goal){
+  if(!n)return '';
+  const g=goal||20;
+  if(n>=g)return 'l4';
+  if(n>=g*0.6)return 'l3';
+  if(n>=g*0.3)return 'l2';
+  return 'l1';
+}
+function studyStats(){
+  const log=(store._meta.log)||{};
+  const days=Object.keys(log).filter(k=>log[k]>0).sort();
+  const total=days.reduce((s,k)=>s+log[k],0);
+  let streak=0;
+  const d=new Date(); d.setHours(0,0,0,0);
+  if(!log[dkey(d)])d.setDate(d.getDate()-1);      // 今日未学習なら昨日から数える
+  while(log[dkey(d)]){streak++;d.setDate(d.getDate()-1);}
+  return {days:days.length,total,streak,log};
+}
+function renderCalendar(){
+  const el=$('#calPanel'); if(!el)return;
+  const S=studyStats(), goal=store._meta.goal||20;
+  const now=new Date();
+  const y=calYM?calYM.y:now.getFullYear(), m=calYM?calYM.m:now.getMonth();
+  const first=new Date(y,m,1), last=new Date(y,m+1,0);
+  const todayK=dkey(now), examK=store._meta.examDate||'';
+  const isThisMonth=(y===now.getFullYear()&&m===now.getMonth());
+  let mTotal=0,mDays=0;
+  for(let d=1;d<=last.getDate();d++){
+    const n=S.log[dkey(new Date(y,m,d))]||0; if(n){mTotal+=n;mDays++;}
+  }
+  const DOW=['日','月','火','水','木','金','土'];
+  let cells='';
+  for(let d=1;d<=last.getDate();d++){
+    const k=dkey(new Date(y,m,d)), n=S.log[k]||0;
+    const cls=['cal-cell',calLevel(n,goal)];
+    if(k===todayK)cls.push('cal-today');   // ※'today'はホームのパネル用クラスと衝突するため使わない
+    if(k===examK)cls.push('cal-exam');
+    // 月初は曜日の位置から始める（空セルを置くとaspect-ratioで高さが崩れるため）
+    const st=(d===1)?` style="grid-column-start:${first.getDay()+1}"`:'';
+    cells+=`<div class="${cls.join(' ')}"${st} title="${k}${n?` ・ ${n}問`:''}${k===examK?' ・ チェック当日':''}">${d}${n?`<span class="n">${n}</span>`:''}</div>`;
+  }
+  el.innerHTML=`<div class="cal-head">${ic('calendar')}<b>学習カレンダー</b>
+      <span class="cal-nav">
+        <button id="calPrev" type="button">‹</button>
+        <span class="cal-ym">${y}年${m+1}月</span>
+        <button id="calNext" type="button" ${isThisMonth?'disabled':''}>›</button>
+      </span></div>
+    <div class="cal-grid">${DOW.map((d,i)=>`<div class="cal-dow ${i===0?'sun':i===6?'sat':''}">${d}</div>`).join('')}${cells}</div>
+    <div class="cal-legend">少 <i style="background:rgba(255,255,255,.06)"></i>
+      <i style="background:color-mix(in srgb,var(--accent) 22%,transparent)"></i>
+      <i style="background:color-mix(in srgb,var(--accent) 42%,transparent)"></i>
+      <i style="background:color-mix(in srgb,var(--accent) 66%,transparent)"></i>
+      <i style="background:linear-gradient(140deg,var(--accent),var(--accent-2))"></i> 多（1日の目標 ${goal}問で満点）</div>
+    <div class="cal-stats">
+      <div class="cal-stat"><b>${mTotal}</b><span>${m+1}月の処理数</span></div>
+      <div class="cal-stat"><b>${mDays}</b><span>${m+1}月の学習日</span></div>
+      <div class="cal-stat"><b style="color:var(--accent-2)">${S.streak}</b><span>連続学習日</span></div>
+      <div class="cal-stat"><b>${S.total}</b><span>累計処理数</span></div>
+    </div>`;
+  $('#calPrev').onclick=()=>{const d=new Date(y,m-1,1);calYM={y:d.getFullYear(),m:d.getMonth()};renderCalendar();};
+  const nx=$('#calNext');
+  if(nx&&!nx.disabled)nx.onclick=()=>{const d=new Date(y,m+1,1);calYM={y:d.getFullYear(),m:d.getMonth()};renderCalendar();};
+}
 
 /* ============ PACE（チェックまでの残ノルマ・周回ベース） ============ */
 function repsOf(id){const p=store[id];return p?(p.reps||0):0;}
