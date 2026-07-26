@@ -251,6 +251,21 @@ a{color:var(--accent)}
   border:1px solid color-mix(in srgb,var(--good) 30%,transparent)}
 .badge.studied{color:var(--warn);background:color-mix(in srgb,var(--warn) 13%,transparent);
   border:1px solid color-mix(in srgb,var(--warn) 30%,transparent)}
+.badge.kind{color:var(--ink-faint);background:var(--glass-soft);border:1px dashed var(--stroke-2)}
+
+/* ---------- 関連資料（派生の問い・参考資料） ---------- */
+.rel-wrap{margin-top:14px;border-top:1px dashed var(--stroke-2);padding-top:11px}
+.rel-toggle{display:inline-flex;align-items:center;gap:7px;cursor:pointer;font:inherit;font-size:12.5px;font-weight:700;
+  color:var(--accent);background:color-mix(in srgb,var(--accent) 10%,transparent);
+  border:1px solid color-mix(in srgb,var(--accent) 26%,transparent);border-radius:10px;padding:7px 12px}
+.rel-toggle:hover{background:color-mix(in srgb,var(--accent) 16%,transparent)}
+.rel-toggle .ic{width:14px;height:14px}
+.rel-body{margin-top:11px;display:none}
+.rel-body.open{display:block}
+.rel-item{padding:11px 13px;border-radius:12px;background:var(--glass-soft);border:1px solid var(--stroke);margin-bottom:9px}
+.rel-item .rel-q{font-weight:700;font-size:13.5px;color:var(--ink);margin:6px 0 7px;line-height:1.55}
+.rel-item .rel-a{font-size:13.5px;line-height:1.7;color:var(--ink);white-space:pre-wrap}
+.rel-item .refs{margin-top:9px}
 .row.done{background:color-mix(in srgb,var(--good) 4%,transparent)}
 .row.done .rq b{color:var(--ink-dim)}
 .row.done .dot.mastered{box-shadow:0 0 0 3px color-mix(in srgb,var(--good) 25%,transparent)}
@@ -572,6 +587,7 @@ select:focus{border-color:var(--accent)}
             <div class="refs" id="fRefs"></div>
             <div class="thumbwrap" id="fThumb"></div>
             <div class="dates" id="fDates"></div>
+            <div id="fRel"></div>
           </div>
           <div class="hint backhint"><svg class="ic" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 9-9"/><path d="M3 5v4h4"/></svg>ここをタップで問題に戻る</div>
         </div>
@@ -736,6 +752,7 @@ function docRank(q){
   const si=DOC_ORDER.indexOf(m[1]);
   return (si<0?99:si)*10000+(+m[2]||0);
 }
+const KIND_LABEL={sub:'派生の問い',ref:'参考資料'};
 
 /* ============ STATE ============ */
 const ALL = (window.ATPL_QA||[]).map((d,i)=>({...d, id:d.id||('q'+i)}));
@@ -1077,6 +1094,9 @@ function renderCard(){
   const flagged=isFlagged(q.id);
   $('#fStar').classList.toggle('on',flagged);$('#bStar').classList.toggle('on',flagged);
   $('#fDates').textContent=(q.dates&&q.dates.length)?('本番で出題: '+q.dates.join(' / ')):'';
+  const rel=(RELATED[q.id]||[]).length;
+  $('#fRel').innerHTML = rel?`<div class="rel-wrap"><button class="rel-toggle" type="button" id="fRelBtn">${ic('link')}関連資料 ${rel}件を見る</button></div>`:'';
+  if(rel)$('#fRelBtn').onclick=e=>{e.stopPropagation();openRelated(q);};
   $('#deckPos').textContent=`${di+1} / ${deck.length}`;
   $('#deckLabel').textContent={all:'全部',due:'復習',freq:'頻出',weak:'苦手',new:'未学習'}[currentDeckMode]||'';
   $('#deckProg').style.width=((di)/deck.length*100)+'%';
@@ -1169,6 +1189,46 @@ $('#scopeSel').onchange=()=>{
   renderBrowse();updateDueUI();
   toast(`出題範囲: ${SCOPE_LABEL[scopeOf()]}（${QA.length}問）`);
 };
+/* ===== 関連資料の紐付け =====
+   資料の掲載順に走査し、主要設問（main）の直後に続く派生の問い・参考資料を
+   その設問の「関連資料」として結び付ける（元資料の文脈の流れをそのまま使う）。 */
+const RELATED={};
+(function buildRelated(){
+  const sorted=ALL.filter(q=>q.source==='shimoda').sort((a,b)=>docRank(a)-docRank(b));
+  let cur=null;
+  sorted.forEach(q=>{
+    const k=q.kind||'main';
+    if(k==='main'){cur=q.id;if(!RELATED[cur])RELATED[cur]=[];}
+    else if(cur)RELATED[cur].push(q.id);
+  });
+})();
+function relatedHTML(id){
+  const list=(RELATED[id]||[]).map(x=>BYID[x]).filter(Boolean);
+  if(!list.length)return '';
+  const ns=list.filter(x=>x.kind==='sub').length, nr=list.length-ns;
+  const parts=[];if(ns)parts.push(`派生 ${ns}`);if(nr)parts.push(`参考 ${nr}`);
+  return `<div class="rel-wrap">
+    <button class="rel-toggle" type="button">${ic('link')}関連資料 ${list.length}件（${parts.join('・')}）</button>
+    <div class="rel-body">${list.map(x=>`
+      <div class="rel-item">
+        <span class="badge kind">${KIND_LABEL[x.kind]||''}</span>
+        <div class="rel-q">${esc(x.q)}</div>
+        <div class="rel-a">${formatAnswer(x.a)}</div>
+        ${(x.refs||[]).length?`<div class="refs">${(x.refs||[]).map(r=>`<span class="ref">${ic('link')}${esc(r)}</span>`).join('')}</div>`:''}
+        ${x.img?`<div class="lazyimg" data-img="${x.img}" data-cap="${esc(x.q)}"></div>`:''}
+      </div>`).join('')}</div>
+  </div>`;
+}
+function bindRelated(r){
+  const btn=r.querySelector('.rel-toggle'); if(!btn)return;
+  btn.onclick=e=>{
+    e.stopPropagation();
+    const body=r.querySelector('.rel-body');
+    const open=body.classList.toggle('open');
+    if(open)materializeImgs(r);
+  };
+}
+
 /* 一覧から直接「習得済み」にする */
 function setMastered(id,on){
   const p=prog(id);
@@ -1233,6 +1293,7 @@ function renderBrowse(){
     r.innerHTML=`<div class="rq"><span class="dot ${st}"></span>
       <div style="flex:1"><b>${esc(q.q)}</b>
       <div class="tags">${st==='mastered'?`<span class="badge done">${ic('check')}習得済み</span>`:''}${st==='learning'?`<span class="badge studied">${ic('book')}勉強済</span>`:''}
+      ${(q.kind&&q.kind!=='main')?`<span class="badge kind">${KIND_LABEL[q.kind]}</span>`:''}
       ${q.freq>0?`<span class="badge freq">${ic('star')}本番${q.freq}回</span>`:''}
       ${catBadge(q.category)}
       ${q.subcategory?`<span class="badge sub">${esc(q.subcategory)}</span>`:''}
@@ -1242,8 +1303,9 @@ function renderBrowse(){
       <span class="star ${isFlagged(q.id)?'on':''}" title="苦手マーク">${ic('star')}</span></div>
       <div class="ra">${formatAnswer(q.a)}
       <div class="refs">${(q.refs||[]).map(x=>`<span class="ref">${ic('link')}${esc(x)}</span>`).join('')}</div>
-      ${q.img?`<div class="lazyimg" data-img="${q.img}" data-cap="${esc(q.q)}"></div>`:''}</div>`;
-    bindRowToggle(r);
+      ${q.img?`<div class="lazyimg" data-img="${q.img}" data-cap="${esc(q.q)}"></div>`:''}
+      ${scopeOf()==='main'?relatedHTML(q.id):''}</div>`;
+    bindRowToggle(r);bindRelated(r);
     const star=r.querySelector('.star');
     star.onclick=e=>{e.stopPropagation();star.classList.toggle('on',toggleFlag(q.id));};
     r.querySelector('.donebtn').onclick=e=>{
@@ -1278,6 +1340,21 @@ function openImg(src,cap){
   $('#modalBody').innerHTML=`<img src="${src}" alt="">${cap?`<p style="color:var(--ink-dim);font-size:13px;margin:10px 4px 4px">${esc(cap)}</p>`:''}`;
   const im=$('#modalBody img');
   im.onclick=()=>im.classList.toggle('zoomed'); // タップで拡大⇔全体表示（ピンチも可）
+  $('#modal').classList.add('show');
+}
+/* 関連資料（派生の問い・参考資料）をモーダルで参照 */
+function openRelated(q){
+  const list=(RELATED[q.id]||[]).map(x=>BYID[x]).filter(Boolean);
+  $('#modalBody').innerHTML=`<h3 style="margin:4px 0 4px;font-size:16px">関連資料 ${list.length}件</h3>
+    <p style="color:var(--ink-dim);font-size:12.5px;margin:0 0 14px;line-height:1.6">${esc(q.q)}</p>
+    ${list.map(x=>`<div class="rel-item">
+      <span class="badge kind">${KIND_LABEL[x.kind]||''}</span>
+      <div class="rel-q">${esc(x.q)}</div>
+      <div class="rel-a">${formatAnswer(x.a)}</div>
+      ${(x.refs||[]).length?`<div class="refs">${(x.refs||[]).map(r=>`<span class="ref">${ic('link')}${esc(r)}</span>`).join('')}</div>`:''}
+      ${x.img?`<img class="ans-thumb" src="${x.img}" alt="" style="margin-top:10px">`:''}
+    </div>`).join('')}`;
+  $$('#modalBody .ans-thumb').forEach(im=>{im.onclick=()=>im.classList.toggle('zoomed');});
   $('#modal').classList.add('show');
 }
 $('#modalX').onclick=()=>$('#modal').classList.remove('show');
