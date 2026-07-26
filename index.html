@@ -269,10 +269,12 @@ a{color:var(--accent)}
 .row.done{background:color-mix(in srgb,var(--good) 4%,transparent)}
 .row.done .rq b{color:var(--ink-dim)}
 .row.done .dot.mastered{box-shadow:0 0 0 3px color-mix(in srgb,var(--good) 25%,transparent)}
-.minibar{display:inline-block;vertical-align:middle;width:88px;height:7px;margin-left:10px;border-radius:99px;
-  background:color-mix(in srgb,var(--good) 25%,transparent);overflow:hidden}
-.minibar i{display:block;height:100%;border-radius:99px;background:color-mix(in srgb,var(--warn) 75%,transparent);
-  transition:width .6s cubic-bezier(.2,.8,.2,1)}
+.minibar{display:inline-flex;vertical-align:middle;width:96px;height:7px;margin-left:10px;border-radius:99px;
+  background:rgba(255,255,255,.12);overflow:hidden}
+:root[data-theme="light"] .minibar{background:rgba(20,60,70,.13)}
+.minibar i{display:block;height:100%;transition:width .6s cubic-bezier(.2,.8,.2,1)}
+.minibar i.mas{background:var(--good)}
+.minibar i.lrn{background:color-mix(in srgb,var(--warn) 80%,transparent)}
 
 /* ---------- toolbar / chips / inputs ---------- */
 .toolbar{display:flex;gap:9px;align-items:center;flex-wrap:wrap;margin-bottom:18px}
@@ -528,8 +530,9 @@ select:focus{border-color:var(--accent)}
           <div id="verLine" style="margin-top:10px;font-size:11px;color:var(--ink-faint)"></div>
           <div class="statline">
             <div class="stat"><b id="stTotal">0</b><span>総問題数</span></div>
+            <div class="stat"><b id="stNew">0</b><span>未着手</span></div>
+            <div class="stat"><b id="stLearning" style="color:var(--warn)">0</b><span>勉強済</span></div>
             <div class="stat"><b id="stMastered" style="color:var(--good)">0</b><span>習得済み</span></div>
-            <div class="stat"><b id="stLearning" style="color:var(--warn)">0</b><span>学習中</span></div>
             <div class="stat"><b id="stDue" style="color:var(--accent-2)">0</b><span>今日の復習</span></div>
           </div>
           <div class="hero-cta">
@@ -931,6 +934,7 @@ function renderHome(){
   $('#ringPct').textContent=s.pct+'%';
   $('#ring').style.setProperty('--p',s.pct);
   $('#stTotal').textContent=s.total;$('#stMastered').textContent=s.mastered;
+  $('#stNew').textContent=s.new;
   $('#stLearning').textContent=s.learning;$('#stDue').textContent=s.due;
   $('#streakN').textContent=(store._meta.streak||1);
   renderToday();renderCountdown();renderPace(s);
@@ -948,7 +952,7 @@ function renderHome(){
     const el=document.createElement('div');el.className='panel cat';
     el.style.setProperty('--cc',catColor(c));
     el.innerHTML=`<div class="cat-ico">${ic(catIcon(c))}</div><div class="pct">${pct}%</div><h3>${esc(c)}</h3>
-      <div class="meta"><b class="rest">残り ${rest}</b> ・ 勉強済 ${l} ・ 習得 ${m} / ${list.length}問</div>
+      <div class="meta"><b class="rest">未着手 ${rest}</b> ・ 勉強済 ${l} ・ 習得 ${m} / ${list.length}問</div>
       <div class="bar"><i style="width:${pct}%"></i><i class="lrn" style="width:${pctL}%"></i></div>`;
     el.onclick=()=>{$('#deckCat').value=c;currentDeckMode='all';setChip('deck','all');show('cards');};
     cg.appendChild(el);
@@ -1269,8 +1273,13 @@ function updateBrowseCountLine(){
   const base=browseFilterBase();
   const dm=base.filter(q=>statusOf(q.id)==='mastered').length;
   const dl=base.filter(q=>statusOf(q.id)==='learning').length;
-  const remain=base.length-dm;
-  $('#browseCount').innerHTML=`${base.length} 問 ・ <span style="color:var(--warn);font-weight:700">勉強済 ${dl}</span> ・ <span style="color:var(--good);font-weight:700">習得 ${dm}</span> ・ <b>残り ${remain}</b><span class="minibar"><i style="width:${base.length?Math.round(remain/base.length*100):0}%"></i></span>`;
+  const dn=base.length-dm-dl;                       // ノータッチ（未着手）
+  const pc=x=>base.length?Math.round(x/base.length*100):0;
+  $('#browseCount').innerHTML=`${base.length} 問 ・ <b>未着手 ${dn}</b>`
+    +` ・ <span style="color:var(--warn);font-weight:700">勉強済 ${dl}</span>`
+    +` ・ <span style="color:var(--good);font-weight:700">習得 ${dm}</span>`
+    +`<span class="minibar" title="習得 ${dm} / 勉強済 ${dl} / 未着手 ${dn}">`
+    +`<i class="mas" style="width:${pc(dm)}%"></i><i class="lrn" style="width:${pc(dl)}%"></i></span>`;
 }
 function renderBrowse(){
   const base=browseFilterBase();
