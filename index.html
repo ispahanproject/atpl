@@ -596,6 +596,11 @@ select:focus{border-color:var(--accent)}
         <span class="searchclear hidden" id="searchClear"><svg class="ic" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg></span>
       </div>
       <select id="browseCat"><option value="">全カテゴリ</option></select>
+      <select id="scopeSel" title="出題範囲">
+        <option value="main">目次の主要設問</option>
+        <option value="sub">＋派生の問い</option>
+        <option value="all">＋参考資料</option>
+      </select>
       <div class="chip" data-bfilter="freq">頻出</div>
       <div class="chip" data-bfilter="star">★苦手</div>
       <div class="chip" data-bfilter="todo">未着手</div>
@@ -739,10 +744,19 @@ const BYID = Object.fromEntries(ALL.map(q=>[q.id,q]));
 const META = window.ATPL_META||{title:'ATPL口述'};
 const LS='atpl_unified_v1';
 let SRC='shimoda';            // 'shimoda' | 'sakoda' | 'common'
-let QA=[];                    // 現在のソースに絞ったリスト（下田/迫田）
+let QA=[];                    // 現在のソース＋出題範囲に絞ったリスト
 let lastTab='home';          // 共通から戻った時に表示するタブ
+/* 出題範囲: main=下田さん口述目次に載っている主要設問のみ / sub=資料中の派生の問いも含む / all=参考資料も含む */
+const SCOPE_LABEL={main:'目次の主要設問',sub:'派生の問いも含む',all:'参考資料も含む'};
+function scopeOf(){return (store._meta&&store._meta.scope)||'main';}
+function inScope(q){
+  const k=q.kind||'main', s=scopeOf();
+  if(s==='all')return true;
+  if(s==='sub')return k!=='ref';
+  return k==='main';
+}
 function rebuildForSource(){
-  QA = ALL.filter(q=>q.source===SRC);
+  QA = ALL.filter(q=>q.source===SRC && inScope(q));
   cats=sortCats(QA.map(q=>q.category));
 }
 let store = load();
@@ -997,6 +1011,7 @@ function renderPace(s){
   const goal=store._meta.goal||20;
   const goalOk=goal>=pL;
   el.innerHTML=`<div class="pace-head">${ic('gauge')}<b>${dl} チェックまで <span class="pace-days">${days}</span> 日</b>${lapSelHTML()}</div>
+    <div class="pace-sub">対象：${SCOPE_LABEL[scopeOf()]} <b>${QA.length}</b>問（一覧タブで範囲を変更できます）</div>
     ${burnHTML(s)}
     <div class="pace-grid">
       <div class="pace-cell ${untouched===0?'ok':''}"><b>${untouched}</b><span>未着手</span><small>1日 ${p1} 問で一巡</small></div>
@@ -1148,6 +1163,12 @@ const dRenderBrowse=debounce(renderBrowse,160);
 $('#search').addEventListener('input',()=>{updClear('#search','#searchClear');dRenderBrowse();});
 $('#searchClear').onclick=()=>{$('#search').value='';updClear('#search','#searchClear');renderBrowse();$('#search').focus();};
 $('#browseCat').onchange=renderBrowse;
+$('#scopeSel').onchange=()=>{
+  store._meta.scope=$('#scopeSel').value;save();
+  rebuildForSource();repopulateCats();deck=[];di=0;
+  renderBrowse();updateDueUI();
+  toast(`出題範囲: ${SCOPE_LABEL[scopeOf()]}（${QA.length}問）`);
+};
 /* 一覧から直接「習得済み」にする */
 function setMastered(id,on){
   const p=prog(id);
@@ -1372,6 +1393,7 @@ if(!ALL.length){
   if(store._src!=='shimoda'){store._src='shimoda';save();} // 迫田・共通タブ廃止に伴う移行（下田さん一本化）
   $('#backupBtn').innerHTML=ic('download');
   $('#verLine').textContent=META.build?`データ更新: ${META.build}`:'';
+  $('#scopeSel').value=scopeOf();
   // デスクトップのみキーボード操作のヒントを表示
   if(!matchMedia('(pointer:coarse)').matches)$('#frontHintTx').textContent='タップ / Space で答えを見る（1〜4で採点）';
   // 「今日の復習」statのタップで復習デッキへ
