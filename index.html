@@ -1317,8 +1317,10 @@ $('#scopeSel').onchange=()=>{
 const RELATED={};
 (function buildRelated(){
   const sorted=ALL.filter(q=>q.source==='shimoda').sort((a,b)=>docRank(a)-docRank(b));
-  let cur=null;
+  let cur=null,curDoc=null;
   sorted.forEach(q=>{
+    const doc=(String(q.id).match(/^([a-z]+\d*)-/)||[])[1]||null;
+    if(doc!==curDoc){curDoc=doc;cur=null;} // 資料が変わったら関連付けを切る（別資料へのぶら下がりを防ぐ）
     const k=q.kind||'main';
     if(k==='main'){cur=q.id;if(!RELATED[cur])RELATED[cur]=[];}
     else if(cur)RELATED[cur].push(q.id);
