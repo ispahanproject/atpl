@@ -508,10 +508,22 @@ select:focus{border-color:var(--accent)}
 .row .studybtn.on{color:var(--warn);background:color-mix(in srgb,var(--warn) 12%,transparent)}
 .row .studybtn .ic{width:17px;height:17px}
 .row.vanish{opacity:0;transform:translateX(28px);transition:opacity .3s,transform .3s}
+/* 2巡目/3巡目の確認チェック */
+.row .lapbtn{cursor:pointer;flex:0 0 auto;font-size:11px;font-weight:800;line-height:1;letter-spacing:.02em;
+  padding:6px 7px;border-radius:8px;border:1.5px solid var(--line);color:var(--ink-faint);background:transparent;transition:.14s;user-select:none}
+.row .lapbtn:hover{border-color:var(--accent);color:var(--accent)}
+.row .lapbtn.on{border-color:var(--accent);color:var(--accent);background:color-mix(in srgb,var(--accent) 14%,transparent)}
+.row .lapbtn.on::before{content:'✓ '}
+.badge.lap{background:color-mix(in srgb,var(--accent) 14%,transparent);color:var(--accent);border-color:color-mix(in srgb,var(--accent) 34%,transparent)}
+.row .rowacts{display:flex;align-items:center;gap:4px;flex:0 0 auto;margin-left:auto}
 
 /* ---------- mobile ---------- */
 .flash,.tab,.chip,.cta,.rate button,.iconbtn{touch-action:manipulation}
 @media(max-width:680px){
+  /* 操作ボタンが増えたので、狭い画面では設問文の下に折り返す */
+  .row .rq{flex-wrap:wrap}
+  .row .rq>div{flex:1 1 100%;min-width:0}
+  .row .rowacts{width:100%;justify-content:flex-end;margin:2px 0 -4px}
   .wrap{padding:0 14px 130px}
   .topbar .inner{padding-left:14px;padding-right:14px;gap:8px}
   .brand .name{font-size:13.5px}
@@ -1367,6 +1379,14 @@ function setStudied(id,on){
   else{p.status='new';}
   save();
 }
+/* 2巡目・3巡目の確認チェック（1巡目は勉強済/習得ボタンが担う） */
+function lapDone(id,n){const p=store[id];return !!(p&&p['lap'+n]);}
+function setLap(id,n,on){
+  const p=prog(id);
+  if(on){ if(!p['lap'+n]){p['lap'+n]=true;p.reps=(p.reps||0)+1;} }
+  else  { if(p['lap'+n]){delete p['lap'+n];p.reps=Math.max(0,(p.reps||0)-1);} }
+  save();
+}
 /* 行の見た目（dot/バッジ/ボタン）を現在のステータスに同期 */
 function refreshRowState(r,q){
   const st=statusOf(q.id);
@@ -1381,6 +1401,13 @@ function refreshRowState(r,q){
   const dbtn=r.querySelector('.donebtn'), sbtn=r.querySelector('.studybtn');
   if(dbtn)dbtn.classList.toggle('on',st==='mastered');
   if(sbtn)sbtn.classList.toggle('on',st==='learning');
+  r.querySelectorAll('.lapbtn').forEach(b=>{
+    const on=lapDone(q.id,+b.dataset.l);
+    b.classList.toggle('on',on);
+    const lb=tags.querySelector(`.badge.lap[data-l="${b.dataset.l}"]`);
+    if(on&&!lb)tags.insertAdjacentHTML('afterbegin',`<span class="badge lap" data-l="${b.dataset.l}">${ic('check')}${b.dataset.l}巡目</span>`);
+    else if(!on&&lb)lb.remove();
+  });
 }
 function browseFilterBase(){
   const term=nrm($('#search').value.trim());const cat=$('#browseCat').value;
@@ -1395,9 +1422,11 @@ function updateBrowseCountLine(){
   const dl=base.filter(q=>statusOf(q.id)==='learning').length;
   const dn=base.length-dm-dl;                       // ノータッチ（未着手）
   const pc=x=>base.length?Math.round(x/base.length*100):0;
+  const l2=base.filter(q=>lapDone(q.id,2)).length, l3=base.filter(q=>lapDone(q.id,3)).length;
   $('#browseCount').innerHTML=`${base.length} 問 ・ <b>未着手 ${dn}</b>`
     +` ・ <span style="color:var(--warn);font-weight:700">勉強済 ${dl}</span>`
     +` ・ <span style="color:var(--good);font-weight:700">習得 ${dm}</span>`
+    +((l2||l3)?` ・ <span style="color:var(--accent);font-weight:700">2巡 ${l2} / 3巡 ${l3}</span>`:'')
     +`<span class="minibar" title="習得 ${dm} / 勉強済 ${dl} / 未着手 ${dn}">`
     +`<i class="mas" style="width:${pc(dm)}%"></i><i class="lrn" style="width:${pc(dl)}%"></i></span>`;
 }
@@ -1421,15 +1450,18 @@ function renderBrowse(){
     const r=document.createElement('div');r.className='row'+(st==='mastered'?' done':'');
     r.innerHTML=`<div class="rq"><span class="dot ${st}"></span>
       <div style="flex:1"><b>${esc(q.q)}</b>
-      <div class="tags">${st==='mastered'?`<span class="badge done">${ic('check')}習得済み</span>`:''}${st==='learning'?`<span class="badge studied">${ic('book')}勉強済</span>`:''}
+      <div class="tags">${[3,2].filter(n=>lapDone(q.id,n)).map(n=>`<span class="badge lap" data-l="${n}">${ic('check')}${n}巡目</span>`).join('')}${st==='mastered'?`<span class="badge done">${ic('check')}習得済み</span>`:''}${st==='learning'?`<span class="badge studied">${ic('book')}勉強済</span>`:''}
       ${(q.kind&&q.kind!=='main')?`<span class="badge kind">${KIND_LABEL[q.kind]}</span>`:''}
       ${q.freq>0?`<span class="badge freq">${ic('star')}本番${q.freq}回</span>`:''}
       ${catBadge(q.category)}
       ${q.subcategory?`<span class="badge sub">${esc(q.subcategory)}</span>`:''}
       ${q.img?`<span class="badge sub">${ic('image')}写真</span>`:''}</div></div>
+      <span class="rowacts">
+      <span class="lapbtn ${lapDone(q.id,2)?'on':''}" data-l="2" title="2巡目で確認した">2巡</span>
+      <span class="lapbtn ${lapDone(q.id,3)?'on':''}" data-l="3" title="3巡目で確認した">3巡</span>
       <span class="studybtn ${st==='learning'?'on':''}" title="勉強済にする">${ic('book')}</span>
       <span class="donebtn ${st==='mastered'?'on':''}" title="習得済みにする">${ic('check')}</span>
-      <span class="star ${isFlagged(q.id)?'on':''}" title="苦手マーク">${ic('star')}</span></div>
+      <span class="star ${isFlagged(q.id)?'on':''}" title="苦手マーク">${ic('star')}</span></span></div>
       <div class="ra">${formatAnswer(q.a)}
       <div class="refs">${(q.refs||[]).map(x=>`<span class="ref">${ic('link')}${esc(x)}</span>`).join('')}</div>
       ${q.img?`<div class="lazyimg" data-img="${q.img}" data-cap="${esc(q.q)}"></div>`:''}
@@ -1466,6 +1498,20 @@ function renderBrowse(){
         if(BF.todo){r.classList.add('vanish');setTimeout(()=>r.remove(),320);}
       }else toast('勉強済を取り消しました');
     };
+    r.querySelectorAll('.lapbtn').forEach(b=>{
+      b.onclick=e=>{
+        e.stopPropagation();
+        const n=+b.dataset.l, on=!lapDone(q.id,n);
+        setLap(q.id,n,on);
+        refreshRowState(r,q);
+        updateBrowseCountLine();updateDueUI();
+        if(on){
+          bumpToday();renderToday();          // 巡回チェックも1回の処理として計上
+          const gi=goalInfo();
+          toast(gi.done&&gi.count===gi.goal ? '今日の目標を達成！' : `${n}巡目チェック（今日 ${gi.count}/${gi.goal}）`);
+        }else toast(`${n}巡目のチェックを外しました`);
+      };
+    });
     el.appendChild(r);
   });
 }
