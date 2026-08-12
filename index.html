@@ -675,8 +675,13 @@ select:focus{border-color:var(--accent)}
         <option value="sub">＋派生の問い</option>
         <option value="all">＋参考資料</option>
       </select>
+      <select id="sortSel" title="並び順">
+        <option value="doc">目次順</option>
+        <option value="state">状態順（未着手→勉強済→習得）</option>
+        <option value="studied">勉強済を先頭</option>
+      </select>
       <div class="chip" data-bfilter="freq">頻出</div>
-      <div class="chip" data-bfilter="star">★苦手</div>
+      <div class="chip" data-bfilter="studied">勉強済</div>
       <div class="chip" data-bfilter="todo">未着手</div>
       <div class="chip" data-bfilter="hidedone">習得済みを隠す</div>
       <div class="chip" data-bfilter="img">写真あり</div>
@@ -1306,17 +1311,31 @@ function bindRowToggle(r){
   const rq=r.querySelector('.rq');
   (rq||r).onclick=()=>{const open=r.classList.toggle('open');if(open)materializeImgs(r);};
 }
-const BF={freq:false,star:false,todo:false,hidedone:false,img:false};
+const BF={freq:false,studied:false,todo:false,hidedone:false,img:false};
 $$('.chip[data-bfilter]').forEach(c=>c.onclick=()=>{
   const k=c.dataset.bfilter;
   BF[k]=!BF[k];c.classList.toggle('active',BF[k]);
+  if(BF.studied&&BF.todo){                      // 勉強済と未着手は排他（同時指定だと0件になる）
+    const other=k==='studied'?'todo':'studied';
+    BF[other]=false;$(`.chip[data-bfilter="${other}"]`).classList.remove('active');
+  }
   renderBrowse();
 });
+/* 並び順（目次順／状態順／勉強済を先頭） */
+function sortMode(){return store._meta.sort||'doc';}
+function stateRank(id){const s=statusOf(id);return s==='new'?0:s==='learning'?1:2;}
+function applySort(list){
+  const m=sortMode();
+  if(m==='state')   return list.sort((a,b)=>stateRank(a.id)-stateRank(b.id)||docRank(a)-docRank(b));
+  if(m==='studied') return list.sort((a,b)=>(statusOf(b.id)==='learning')-(statusOf(a.id)==='learning')||docRank(a)-docRank(b));
+  return list.sort((a,b)=>docRank(a)-docRank(b));   // 目次順
+}
 function updClear(inp,btn){$(btn).classList.toggle('hidden',!$(inp).value);}
 const dRenderBrowse=debounce(renderBrowse,160);
 $('#search').addEventListener('input',()=>{updClear('#search','#searchClear');dRenderBrowse();});
 $('#searchClear').onclick=()=>{$('#search').value='';updClear('#search','#searchClear');renderBrowse();$('#search').focus();};
 $('#browseCat').onchange=renderBrowse;
+$('#sortSel').onchange=()=>{store._meta.sort=$('#sortSel').value;save();renderBrowse();};
 $('#scopeSel').onchange=()=>{
   store._meta.scope=$('#scopeSel').value;save();
   rebuildForSource();repopulateCats();deck=[];di=0;
@@ -1412,7 +1431,8 @@ function refreshRowState(r,q){
 function browseFilterBase(){
   const term=nrm($('#search').value.trim());const cat=$('#browseCat').value;
   return QA.filter(q=>(!cat||q.category===cat)
-    &&(!BF.freq||q.freq>=2)&&(!BF.img||q.img)&&(!BF.star||isFlagged(q.id))
+    &&(!BF.freq||q.freq>=2)&&(!BF.img||q.img)
+    &&(!BF.studied||statusOf(q.id)==='learning')
     &&(!BF.todo||statusOf(q.id)==='new')
     &&(!term||nrm(q.q+' '+q.a+' '+(q.refs||[]).join(' ')+' '+(q.subcategory||'')).includes(term)));
 }
@@ -1433,17 +1453,28 @@ function updateBrowseCountLine(){
 function renderBrowse(){
   const base=browseFilterBase();
   let list=BF.hidedone?base.filter(q=>statusOf(q.id)!=='mastered'):base;
-  list.sort((a,b)=>docRank(a)-docRank(b)); // 下田さん口述目次の掲載順
+  applySort(list);
   updateBrowseCountLine();
   const el=$('#browseList');el.innerHTML='';
   if(!list.length){el.innerHTML=BF.hidedone&&base.length?`<div class="empty">${ic('trophy')}<div>この条件の問題はすべて習得済みです！</div></div>`:'<div class="empty">該当する問題がありません</div>';return;}
-  let lastCat=null;
+  const byDoc=sortMode()==='doc';
+  const ST_LABEL={new:'未着手',learning:'勉強済',mastered:'習得済み'};
+  let lastCat=null,lastSt=null;
   list.forEach(q=>{
-    if(q.category!==lastCat){
+    if(byDoc&&q.category!==lastCat){
       lastCat=q.category;
       const h=document.createElement('div');h.className='cat-sep';
       h.style.setProperty('--cc',catColor(q.category));
       h.innerHTML=`${ic(catIcon(q.category))}${esc(q.category)}`;
+      el.appendChild(h);
+    }
+    // 状態順のときは状態で区切る（「勉強済を先頭」は 勉強済 / その他 の2ブロック）
+    const gk=sortMode()==='studied' ? (statusOf(q.id)==='learning'?'learning':'other') : statusOf(q.id);
+    if(!byDoc&&gk!==lastSt){
+      lastSt=gk;
+      const h=document.createElement('div');h.className='cat-sep';
+      h.style.setProperty('--cc',gk==='mastered'?'var(--good)':gk==='learning'?'var(--warn)':'var(--ink-faint)');
+      h.innerHTML=`${ic(gk==='mastered'?'check':gk==='learning'?'book':'list')}${gk==='other'?'そのほか':ST_LABEL[gk]}`;
       el.appendChild(h);
     }
     const st=statusOf(q.id);
@@ -1460,15 +1491,12 @@ function renderBrowse(){
       <span class="lapbtn ${lapDone(q.id,2)?'on':''}" data-l="2" title="2巡目で確認した">2巡</span>
       <span class="lapbtn ${lapDone(q.id,3)?'on':''}" data-l="3" title="3巡目で確認した">3巡</span>
       <span class="studybtn ${st==='learning'?'on':''}" title="勉強済にする">${ic('book')}</span>
-      <span class="donebtn ${st==='mastered'?'on':''}" title="習得済みにする">${ic('check')}</span>
-      <span class="star ${isFlagged(q.id)?'on':''}" title="苦手マーク">${ic('star')}</span></span></div>
+      <span class="donebtn ${st==='mastered'?'on':''}" title="習得済みにする">${ic('check')}</span></span></div>
       <div class="ra">${formatAnswer(q.a)}
       <div class="refs">${(q.refs||[]).map(x=>`<span class="ref">${ic('link')}${esc(x)}</span>`).join('')}</div>
       ${q.img?`<div class="lazyimg" data-img="${q.img}" data-cap="${esc(q.q)}"></div>`:''}
       ${scopeOf()==='main'?relatedHTML(q.id):''}</div>`;
     bindRowToggle(r);bindRelated(r);
-    const star=r.querySelector('.star');
-    star.onclick=e=>{e.stopPropagation();star.classList.toggle('on',toggleFlag(q.id));};
     r.querySelector('.donebtn').onclick=e=>{
       e.stopPropagation();
       const on=statusOf(q.id)!=='mastered';
@@ -1652,6 +1680,7 @@ if(!ALL.length){
   $('#backupBtn').innerHTML=ic('download');
   $('#verLine').textContent=META.build?`データ更新: ${META.build}`:'';
   $('#scopeSel').value=scopeOf();
+  $('#sortSel').value=sortMode();
   // デスクトップのみキーボード操作のヒントを表示
   if(!matchMedia('(pointer:coarse)').matches)$('#frontHintTx').textContent='タップ / Space で答えを見る（1〜4で採点）';
   // 「今日の復習」statのタップで復習デッキへ
