@@ -577,7 +577,7 @@ select:focus{border-color:var(--accent)}
       <div class="panel hero">
         <div class="ring" id="ring"><div class="val"><b id="ringPct">0%</b><span>習得率</span></div></div>
         <div class="info">
-          <h1 id="heroTitle">おかえりなさい、機長</h1>
+          <h1 id="heroTitle"></h1>
           <p id="heroMsg">今日も一歩ずつ。口述本番は「即答」が命。</p>
           <div class="countdown unset" id="countdown"></div>
           <div id="verLine" style="margin-top:10px;font-size:11px;color:var(--ink-faint)"></div>
@@ -910,6 +910,19 @@ $('#goalEdit').onclick=()=>{
 
 /* ===== EXAM COUNTDOWN ===== */
 function fmtDate(d){return `${d.getFullYear()}/${d.getMonth()+1}/${d.getDate()}`;}
+/* ホーム見出し: 今日の日付＋チェックまでの残り日数 */
+function renderHeroTitle(){
+  const el=$('#heroTitle'); if(!el)return;
+  const t=new Date();
+  const today=`${t.getMonth()+1}月${t.getDate()}日（${'日月火水木金土'[t.getDay()]}）`;
+  const iso=store._meta.examDate;
+  if(!iso){el.textContent=`${today}　チェック日を設定してください`;return;}
+  const ex=new Date(iso+'T00:00:00');const d0=new Date();d0.setHours(0,0,0,0);
+  const days=Math.round((ex-d0)/DAY);
+  el.innerHTML = days>0  ? `${today}　チェックまで <b>${days}</b> 日`
+               : days===0? `${today}　<b>チェック当日</b>`
+               :           `${today}　チェック日を過ぎています`;
+}
 function renderCountdown(){
   const el=$('#countdown');const iso=store._meta.examDate;
   if(!iso){el.className='countdown unset';el.innerHTML=`${ic('calendar')}試験日を設定`;return;}
@@ -1003,7 +1016,8 @@ function renderHome(){
   $('#stLearning').textContent=s.learning;$('#stDue').textContent=s.due;
   $('#streakN').textContent=studyStats().streak;   // 実際に学習した日の連続数
   renderToday();renderCountdown();renderPace(s);renderCalendar();
-  const msgs=['今日も一歩ずつ。口述本番は「即答」が命。','頻出問題から固めるのが最短ルート。','"なぜ"まで言えると一段上。','下田さんは深掘りしてくる。根拠規程まで押さえよう。'];
+  renderHeroTitle();
+  const msgs=['今日も一歩ずつ。口述本番は「即答」が命。','頻出問題から固めるのが最短ルート。','"なぜ"まで言えると一段上。','深掘りに備えて根拠規程まで押さえよう。'];
   $('#heroMsg').textContent = s.due>0 ? `復習が ${s.due} 問たまっています。サッと回そう。` : msgs[s.mastered%msgs.length];
 
   const cg=$('#catGrid');cg.innerHTML='';
@@ -1157,7 +1171,7 @@ function renderPace(s){
   const days=Math.round((ex-today)/DAY);
   const dl=`${ex.getMonth()+1}/${ex.getDate()}`;
   if(days<=0){
-    el.innerHTML=`<div class="pace-head">${ic('plane')}<b>${days===0?'本番当日。いってらっしゃい、機長。':'チェック日を過ぎています（タップで再設定）'}</b></div>`;
+    el.innerHTML=`<div class="pace-head">${ic('plane')}<b>${days===0?'チェック当日。いってらっしゃい。':'チェック日を過ぎています（タップで再設定）'}</b></div>`;
     if(days<0)el.onclick=()=>$('#countdown').click();
     return;
   }
@@ -1205,7 +1219,7 @@ function renderCard(){
   if(di>=deck.length){
     $('.scene').classList.add('hidden');$('#rateBar').classList.add('hidden');$('.swipehint').style.visibility='hidden';
     empty.classList.remove('hidden');
-    empty.innerHTML=`${ic('trophy')}<div>デッキ完了。おつかれさまでした、機長。</div>
+    empty.innerHTML=`${ic('trophy')}<div>デッキ完了。おつかれさまでした。</div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:center">
       <button class="cta" onclick="startDeck()">もう一周する</button>
       <button class="cta ghost" onclick="currentDeckMode='weak';setChip('deck','weak');startDeck()">★苦手だけ復習</button>
