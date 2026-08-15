@@ -279,6 +279,15 @@ a{color:var(--accent)}
 }
 
 /* ---------- burn-down（残ノルマゲージ: 習得するほど縮む） ---------- */
+/* 巡ごとの完了率 */
+.lapprog{margin-top:12px;display:grid;gap:7px}
+.lp{display:flex;align-items:center;gap:9px;font-size:11.5px;font-weight:700;color:var(--ink-dim)}
+.lp-n{flex:0 0 30px}
+.lp-bar{flex:1;height:7px;border-radius:99px;background:var(--glass-soft);overflow:hidden}
+.lp-bar i{display:block;height:100%;border-radius:99px;background:var(--accent);transition:width .45s cubic-bezier(.2,.8,.2,1)}
+.lp-v{flex:0 0 84px;text-align:right;color:var(--ink);font-variant-numeric:tabular-nums}
+.lp-v b{font-size:13px}
+.lp-v em{font-style:normal;color:var(--ink-faint);font-weight:600;margin-left:6px;font-size:10.5px}
 .burn{margin-top:13px}
 .burn-lbl{display:flex;justify-content:space-between;font-size:11.5px;color:var(--ink-dim);margin-bottom:5px;font-weight:650}
 .burn-lbl .got{color:var(--good)}
@@ -1146,11 +1155,28 @@ function bindLapSel(){
     toast(`目標を ${b.dataset.l}巡 にしました`);
   });
 }
+/* 巡ごとの完了率（1巡＝一度でも処理した／2巡・3巡＝チェック済み） */
+function lapProgress(){
+  const tot=QA.length||1;
+  const d1=QA.filter(q=>statusOf(q.id)!=='new').length;
+  const d2=QA.filter(q=>lapDone(q.id,2)).length;
+  const d3=QA.filter(q=>lapDone(q.id,3)).length;
+  return [1,2,3].map((n,i)=>{const done=[d1,d2,d3][i];
+    return {n,done,total:QA.length,pct:Math.round(done/tot*100)};});
+}
+function lapProgHTML(){
+  return `<div class="lapprog">${lapProgress().map(p=>
+    `<div class="lp" title="${p.n}巡目 ${p.done} / ${p.total} 問">
+       <span class="lp-n">${p.n}巡</span>
+       <span class="lp-bar"><i style="width:${p.pct}%"></i></span>
+       <span class="lp-v"><b>${p.pct}</b>%<em>${p.done}/${p.total}</em></span>
+     </div>`).join('')}</div>`;
+}
 function burnHTML(s){
   const L=lapStats();
   const remainPct=L.total?Math.round(L.remain/L.total*100):0;
   return `<div class="burn"><div class="burn-lbl"><span>残り処理 <b>${L.remain}</b> / ${L.total}回（${L.laps}巡）</span><span class="got">習得 ${s.mastered}</span></div>
-    <div class="burnbar"><i style="width:${remainPct}%"></i></div></div>`;
+    <div class="burnbar"><i style="width:${remainPct}%"></i></div></div>${lapProgHTML()}`;
 }
 function renderPace(s){
   const el=$('#pacePanel'); if(!el)return;
@@ -1460,7 +1486,7 @@ function updateBrowseCountLine(){
   $('#browseCount').innerHTML=`${base.length} 問 ・ <b>未着手 ${dn}</b>`
     +` ・ <span style="color:var(--warn);font-weight:700">勉強済 ${dl}</span>`
     +` ・ <span style="color:var(--good);font-weight:700">習得 ${dm}</span>`
-    +((l2||l3)?` ・ <span style="color:var(--accent);font-weight:700">2巡 ${l2} / 3巡 ${l3}</span>`:'')
+    +((l2||l3)?` ・ <span style="color:var(--accent);font-weight:700">2巡 ${pc(l2)}% (${l2}) / 3巡 ${pc(l3)}% (${l3})</span>`:'')
     +`<span class="minibar" title="習得 ${dm} / 勉強済 ${dl} / 未着手 ${dn}">`
     +`<i class="mas" style="width:${pc(dm)}%"></i><i class="lrn" style="width:${pc(dl)}%"></i></span>`;
 }
