@@ -807,7 +807,7 @@ function hashN(s){let h=0;for(let i=0;i<s.length;i++)h=(h*31+s.charCodeAt(i))>>>
 function catColor(c){return (CATMETA[c]&&CATMETA[c].c)||CATPAL[hashN(c)%CATPAL.length];}
 function catIcon(c){return (CATMETA[c]&&CATMETA[c].i)||'dots';}
 function catBadge(c){return `<span class="badge cat" style="--cc:${catColor(c)}">${ic(catIcon(c))}${esc(c)}</span>`;}
-function formatAnswer(t){return esc(t).replace(/【([^】]+)】/g,'<span class="ans-h">【$1】</span>').replace(/→/g,'<span class="ans-arrow">→</span>');}
+function formatAnswer(t){return esc(t).replace(/【([^】]+)】/g,'<span class="ans-h">【$1】</span>').replace(/(^|\n)(&lt;(?:[^&\n]|&amp;){1,60}?&gt;)/g,'$1<span class="ans-h">$2</span>').replace(/→/g,'<span class="ans-arrow">→</span>');}
 function isFlagged(id){return !!prog(id).flag}
 function toggleFlag(id){const p=prog(id);p.flag=!p.flag;save();return p.flag}
 
