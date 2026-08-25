@@ -1146,7 +1146,7 @@ function lapStats(){
 }
 function lapSelHTML(){
   const cur=lapsGoal();
-  return `<span class="lapsel">${[1,2,3].map(n=>`<i class="${n===cur?'on':''}" data-l="${n}">${n}巡</i>`).join('')}</span>`;
+  return `<span class="lapsel">${[1,2,3,4].map(n=>`<i class="${n===cur?'on':''}" data-l="${n}">${n}巡</i>`).join('')}</span>`;
 }
 function bindLapSel(){
   $$('#pacePanel .lapsel i').forEach(b=>b.onclick=e=>{
@@ -1161,7 +1161,9 @@ function lapProgress(){
   const d1=QA.filter(q=>statusOf(q.id)!=='new').length;
   const d2=QA.filter(q=>lapDone(q.id,2)).length;
   const d3=QA.filter(q=>lapDone(q.id,3)).length;
-  return [1,2,3].map((n,i)=>{const done=[d1,d2,d3][i];
+  const d4=QA.filter(q=>lapDone(q.id,4)).length;
+  const laps=(d4||lapsGoal()>=4)?[1,2,3,4]:[1,2,3];   // 4巡は使い始めたら表示
+  return laps.map((n,i)=>{const done=[d1,d2,d3,d4][i];
     return {n,done,total:QA.length,pct:Math.round(done/tot*100)};});
 }
 function lapProgHTML(){
@@ -1482,11 +1484,11 @@ function updateBrowseCountLine(){
   const dl=base.filter(q=>statusOf(q.id)==='learning').length;
   const dn=base.length-dm-dl;                       // ノータッチ（未着手）
   const pc=x=>base.length?Math.round(x/base.length*100):0;
-  const l2=base.filter(q=>lapDone(q.id,2)).length, l3=base.filter(q=>lapDone(q.id,3)).length;
+  const l2=base.filter(q=>lapDone(q.id,2)).length, l3=base.filter(q=>lapDone(q.id,3)).length, l4=base.filter(q=>lapDone(q.id,4)).length;
   $('#browseCount').innerHTML=`${base.length} 問 ・ <b>未着手 ${dn}</b>`
     +` ・ <span style="color:var(--warn);font-weight:700">勉強済 ${dl}</span>`
     +` ・ <span style="color:var(--good);font-weight:700">習得 ${dm}</span>`
-    +((l2||l3)?` ・ <span style="color:var(--accent);font-weight:700">2巡 ${pc(l2)}% (${l2}) / 3巡 ${pc(l3)}% (${l3})</span>`:'')
+    +((l2||l3||l4)?` ・ <span style="color:var(--accent);font-weight:700">2巡 ${pc(l2)}% (${l2}) / 3巡 ${pc(l3)}% (${l3})${l4?` / 4巡 ${pc(l4)}% (${l4})`:''}</span>`:'')
     +`<span class="minibar" title="習得 ${dm} / 勉強済 ${dl} / 未着手 ${dn}">`
     +`<i class="mas" style="width:${pc(dm)}%"></i><i class="lrn" style="width:${pc(dl)}%"></i></span>`;
 }
@@ -1521,7 +1523,7 @@ function renderBrowse(){
     const r=document.createElement('div');r.className='row'+(st==='mastered'?' done':'');
     r.innerHTML=`<div class="rq"><span class="dot ${st}"></span>
       <div style="flex:1"><b>${esc(q.q)}</b>
-      <div class="tags">${[3,2].filter(n=>lapDone(q.id,n)).map(n=>`<span class="badge lap" data-l="${n}">${ic('check')}${n}巡目</span>`).join('')}${st==='mastered'?`<span class="badge done">${ic('check')}習得済み</span>`:''}${st==='learning'?`<span class="badge studied">${ic('book')}勉強済</span>`:''}
+      <div class="tags">${[4,3,2].filter(n=>lapDone(q.id,n)).map(n=>`<span class="badge lap" data-l="${n}">${ic('check')}${n}巡目</span>`).join('')}${st==='mastered'?`<span class="badge done">${ic('check')}習得済み</span>`:''}${st==='learning'?`<span class="badge studied">${ic('book')}勉強済</span>`:''}
       ${(q.kind&&q.kind!=='main')?`<span class="badge kind">${KIND_LABEL[q.kind]}</span>`:''}
       ${q.freq>0?`<span class="badge freq">${ic('star')}本番${q.freq}回</span>`:''}
       ${catBadge(q.category)}
@@ -1530,6 +1532,7 @@ function renderBrowse(){
       <span class="rowacts">
       <span class="lapbtn ${lapDone(q.id,2)?'on':''}" data-l="2" title="2巡目で確認した">2巡</span>
       <span class="lapbtn ${lapDone(q.id,3)?'on':''}" data-l="3" title="3巡目で確認した">3巡</span>
+      <span class="lapbtn ${lapDone(q.id,4)?'on':''}" data-l="4" title="4巡目で確認した">4巡</span>
       <span class="studybtn ${st==='learning'?'on':''}" title="勉強済にする">${ic('book')}</span>
       <span class="donebtn ${st==='mastered'?'on':''}" title="習得済みにする">${ic('check')}</span></span></div>
       <div class="ra">${formatAnswer(q.a)}
